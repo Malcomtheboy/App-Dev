@@ -1,9 +1,29 @@
-import { Text, StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandMark } from '@/components/brand-mark';
+
+const palette = {
+  light: {
+    background: '#F3F9F5',
+    logo: '#0C6048',
+    text: '#123B2F',
+    subtitle: '#668075',
+  },
+  dark: {
+    background: '#0F2E23',
+    logo: '#79D2AE',
+    text: '#FFFFFF',
+    subtitle: '#B8C4BF',
+  },
+};
+
 export default function SplashScreen() {
+  const colorScheme = useColorScheme();
+  const colors = palette[colorScheme === 'dark' ? 'dark' : 'light'];
+
   useEffect(() => {
     const timer = setTimeout(() => {
       router.replace('/onboarding');
@@ -13,15 +33,17 @@ export default function SplashScreen() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.iconWrapper}>
-        <Text style={styles.moon}>☾</Text>
-        <View style={styles.dome} />
-        <View style={styles.arch} />
-      </View>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <View style={styles.brandLockup}>
+        <View style={styles.mosqueBackdrop}>
+          <BrandMark color={colors.logo} size={256} />
+        </View>
 
-      <Text style={styles.title}>Rihla</Text>
-      <Text style={styles.subtitle}>Din reise mot Allah</Text>
+        <View style={styles.wordmark}>
+          <Text style={[styles.title, { color: colors.text }]}>Rihla</Text>
+          <Text style={[styles.subtitle, { color: colors.subtitle }]}>Din reise mot Allah</Text>
+        </View>
+      </View>
 
     </SafeAreaView>
   );
@@ -30,48 +52,32 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F2E23',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrapper: {
+  brandLockup: {
+    width: '100%',
+    height: 390,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginBottom: 24,
-    height: 140,
+    justifyContent: 'center',
   },
-  moon: {
-    fontSize: 28,
-    color: '#5DCAA5',
-    marginBottom: 8,
+  mosqueBackdrop: {
+    position: 'absolute',
+    opacity: 0.9,
   },
-  dome: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#5DCAA5',
-    marginBottom: -4,
-    zIndex: 2,
-  },
-  arch: {
-    width: 90,
-    height: 100,
-    borderTopLeftRadius: 45,
-    borderTopRightRadius: 45,
-    borderWidth: 2,
-    borderColor: '#5DCAA5',
-    borderBottomWidth: 0,
+  wordmark: {
+    alignItems: 'center',
+    marginTop: 172,
   },
   title: {
-    fontSize: 32,
+    fontFamily: 'serif',
+    fontSize: 54,
     fontWeight: '700',
-    color: '#fff',
-    marginBottom: 6,
+    letterSpacing: -0.5,
+    marginBottom: 3,
   },
   subtitle: {
-    fontSize: 13,
-    color: '#B8C4BF',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

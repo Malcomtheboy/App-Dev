@@ -1,47 +1,96 @@
-import { Text, TouchableOpacity, StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandMark } from '@/components/brand-mark';
+
+const palette = {
+  light: {
+    background: '#F7FAF8',
+    surface: '#FFFFFF',
+    border: '#D7E5DD',
+    text: '#123B2F',
+    muted: '#668075',
+    accent: '#0C6048',
+    accentSoft: '#E3F2EA',
+    buttonText: '#FFFFFF',
+  },
+  dark: {
+    background: '#081C17',
+    surface: '#102A22',
+    border: '#24483B',
+    text: '#F3F8F4',
+    muted: '#A7BBB0',
+    accent: '#83D8B5',
+    accentSoft: '#173C30',
+    buttonText: '#062A20',
+  },
+};
+
 export default function OnboardingScreen() {
   const [selected, setSelected] = useState<'deepen' | 'revert' | null>(null);
+  const colorScheme = useColorScheme();
+  const colors = palette[colorScheme === 'dark' ? 'dark' : 'light'];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={styles.content}>
         <View style={styles.logoCircle}>
-          <Text style={styles.logoIcon}>☾</Text>
+          <BrandMark color={colors.accent} size={48} />
         </View>
 
-      <Text style={styles.title}>Velkommen til Rihla</Text>
-      <Text style={styles.subtitle}>Hvor starter reisen din?</Text>
-
-      <TouchableOpacity
-        style={[styles.card, selected === 'deepen' && styles.cardSelected]}
-        onPress={() => setSelected('deepen')}
-      >
-        <Text style={styles.cardTitle}>Fordype meg</Text>
-        <Text style={styles.cardSubtitle}>Jeg praktiserer allerede</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.card, selected === 'revert' && styles.cardSelected]}
-        onPress={() => setSelected('revert')}
-      >
-        <Text style={styles.cardTitle}>Ny / revert</Text>
-        <Text style={styles.cardSubtitle}>Jeg er tidlig i reisen</Text>
-      </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>Velkommen til Rihla</Text>
+        <Text style={[styles.subtitle, { color: colors.muted }]}>Hvor starter reisen din?</Text>
 
         <TouchableOpacity
-          style={[styles.continueButton, !selected && styles.continueDisabled]}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: selected === 'deepen' }}
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+            selected === 'deepen' && { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+          ]}
+          onPress={() => setSelected('deepen')}
+        >
+          <View style={[styles.optionIcon, { backgroundColor: colors.accentSoft }]}>
+            <Text style={[styles.optionEmoji, { color: colors.accent }]}>✦</Text>
+          </View>
+          <View style={styles.optionCopy}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Fordype meg</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.muted }]}>Jeg praktiserer allerede</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          accessibilityRole="radio"
+          accessibilityState={{ selected: selected === 'revert' }}
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+            selected === 'revert' && { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+          ]}
+          onPress={() => setSelected('revert')}
+        >
+          <View style={[styles.optionIcon, { backgroundColor: colors.accentSoft }]}>
+            <Text style={[styles.optionEmoji, { color: colors.accent }]}>⌁</Text>
+          </View>
+          <View style={styles.optionCopy}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Ny / revert</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.muted }]}>Jeg er tidlig i reisen</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.continueButton, { backgroundColor: colors.accent }, !selected && styles.continueDisabled]}
           disabled={!selected}
           onPress={() => router.replace('/home')}
         >
-          <Text style={styles.continueText}>Fortsett</Text>
+          <Text style={[styles.continueText, { color: colors.buttonText }]}>Fortsett</Text>
         </TouchableOpacity>
 
-        <Text style={styles.loginText}>
-          Har du konto? <Text style={styles.loginLink}>Logg inn</Text>
+        <Text style={[styles.loginText, { color: colors.muted }]}>
+          Har du konto? <Text style={[styles.loginLink, { color: colors.accent }]}>Logg inn</Text>
         </Text>
       </View>
     </SafeAreaView>
@@ -59,19 +108,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: '#173428',
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  logoIcon: { fontSize: 24, color: '#5DCAA5' },
   title: {
-    fontSize: 20,
-    fontWeight: '500',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#fff',
     textAlign: 'center',
     marginBottom: 4,
@@ -80,23 +124,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#8B928E',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
   },
   card: {
-    backgroundColor: '#141816',
     borderWidth: 1,
-    borderColor: '#1F2521',
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  cardSelected: {
-    borderColor: '#5DCAA5',
+  optionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cardTitle: { fontSize: 14, fontWeight: '500', color: '#fff' },
-  cardSubtitle: { fontSize: 11, color: '#8B928E', marginTop: 2 },
+  optionEmoji: { fontSize: 18, fontWeight: '700' },
+  optionCopy: { marginLeft: 12, flex: 1 },
+  cardTitle: { fontSize: 15, fontWeight: '700' },
+  cardSubtitle: { fontSize: 12, marginTop: 3 },
   continueButton: {
-    backgroundColor: '#5DCAA5',
     borderRadius: 14,
     padding: 16,
     alignItems: 'center',
@@ -105,15 +154,13 @@ const styles = StyleSheet.create({
   continueDisabled: {
     opacity: 0.4,
   },
-  continueText: { fontSize: 14, fontWeight: '600', color: '#04342C' },
+  continueText: { fontSize: 15, fontWeight: '700' },
   loginText: {
-    fontSize: 11,
-    color: '#8B928E',
+    fontSize: 12,
     textAlign: 'center',
     marginTop: 16,
   },
   loginLink: {
-    color: '#5DCAA5',
-    fontWeight: '500',
+    fontWeight: '700',
   },
 });
