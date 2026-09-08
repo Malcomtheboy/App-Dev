@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const weekData = [
   { day: 'M', height: 55 },
@@ -11,8 +12,10 @@ const weekData = [
 ];
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.greeting}>Salaam, Ahmed</Text>
@@ -59,7 +62,7 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
+      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <Text style={[styles.navIcon, styles.navIconActive]}>⌂</Text>
         <Text style={styles.navIcon}>📖</Text>
         <View style={styles.navCenterButton}>
@@ -68,13 +71,13 @@ export default function HomeScreen() {
         <Text style={styles.navIcon}>📊</Text>
         <Text style={styles.navIcon}>👤</Text>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0C0B' },
-  scrollContent: { padding: 20, paddingBottom: 20 },
+  scrollContent: { padding: 20, paddingBottom: 32 },
   header: { marginBottom: 8 },
   greeting: { fontSize: 13, color: '#8B928E' },
   label: { fontSize: 11, color: '#8B928E', marginTop: 12 },
@@ -126,7 +129,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: '#1A1E1B',
     backgroundColor: '#0A0C0B',

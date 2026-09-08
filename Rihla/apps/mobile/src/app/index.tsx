@@ -1,18 +1,19 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet, View } from 'react-native';
 import { useEffect } from 'react';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SplashScreen() {
   useEffect(() => {
     const timer = setTimeout(() => {
       router.replace('/onboarding');
-    }, 2000);
+    }, 3000);
 
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.iconWrapper}>
         <Text style={styles.moon}>☾</Text>
         <View style={styles.dome} />
@@ -22,8 +23,7 @@ export default function SplashScreen() {
       <Text style={styles.title}>Rihla</Text>
       <Text style={styles.subtitle}>Din reise mot Allah</Text>
 
-      <View style={styles.homeIndicator} />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -73,13 +73,5 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 13,
     color: '#B8C4BF',
-  },
-  homeIndicator: {
-    position: 'absolute',
-    bottom: 30,
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#3A4A44',
   },
 });

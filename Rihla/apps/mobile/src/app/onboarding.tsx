@@ -1,15 +1,17 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function OnboardingScreen() {
   const [selected, setSelected] = useState<'deepen' | 'revert' | null>(null);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.logoCircle}>
-        <Text style={styles.logoIcon}>☾</Text>
-      </View>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <View style={styles.content}>
+        <View style={styles.logoCircle}>
+          <Text style={styles.logoIcon}>☾</Text>
+        </View>
 
       <Text style={styles.title}>Velkommen til Rihla</Text>
       <Text style={styles.subtitle}>Hvor starter reisen din?</Text>
@@ -30,18 +32,19 @@ export default function OnboardingScreen() {
         <Text style={styles.cardSubtitle}>Jeg er tidlig i reisen</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.continueButton, !selected && styles.continueDisabled]}
-        disabled={!selected}
-        onPress={() => router.push('/home')}
-      >
-        <Text style={styles.continueText}>Fortsett</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.continueButton, !selected && styles.continueDisabled]}
+          disabled={!selected}
+          onPress={() => router.replace('/home')}
+        >
+          <Text style={styles.continueText}>Fortsett</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.loginText}>
-        Har du konto? <Text style={styles.loginLink}>Logg inn</Text>
-      </Text>
-    </View>
+        <Text style={styles.loginText}>
+          Har du konto? <Text style={styles.loginLink}>Logg inn</Text>
+        </Text>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -50,6 +53,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0A0C0B',
     padding: 24,
+  },
+  content: {
+    flex: 1,
     justifyContent: 'center',
   },
   logoCircle: {
