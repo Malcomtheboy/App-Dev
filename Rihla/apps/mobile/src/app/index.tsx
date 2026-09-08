@@ -1,98 +1,85 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet } from 'react-native';
+import { useEffect } from 'react';
+import { router } from 'expo-router';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+export default function SplashScreen() {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      router.replace('/onboarding');
+    }, 2000);
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <View style={styles.container}>
+      <View style={styles.iconWrapper}>
+        <Text style={styles.moon}>☾</Text>
+        <View style={styles.dome} />
+        <View style={styles.arch} />
+      </View>
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+      <Text style={styles.title}>Rihla</Text>
+      <Text style={styles.subtitle}>Din reise mot Allah</Text>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+      <View style={styles.homeIndicator} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
+    backgroundColor: '#0F2E23',
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+  },
+  iconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginBottom: 24,
+    height: 140,
+  },
+  moon: {
+    fontSize: 28,
+    color: '#5DCAA5',
+    marginBottom: 8,
+  },
+  dome: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#5DCAA5',
+    marginBottom: -4,
+    zIndex: 2,
+  },
+  arch: {
+    width: 90,
+    height: 100,
+    borderTopLeftRadius: 45,
+    borderTopRightRadius: 45,
+    borderWidth: 2,
+    borderColor: '#5DCAA5',
+    borderBottomWidth: 0,
   },
   title: {
-    textAlign: 'center',
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 6,
   },
-  code: {
-    textTransform: 'uppercase',
+  subtitle: {
+    fontSize: 13,
+    color: '#B8C4BF',
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  homeIndicator: {
+    position: 'absolute',
+    bottom: 30,
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#3A4A44',
   },
 });
