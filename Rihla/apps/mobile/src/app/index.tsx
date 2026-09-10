@@ -1,78 +1,62 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
 import { router } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
+import { useTheme } from '@/theme/theme-context';
 
 export default function SplashScreen() {
+  const { colors } = useTheme();
+
   useEffect(() => {
     const timer = setTimeout(() => {
       router.replace('/onboarding');
-    }, 2000);
+    }, 1800);
 
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.iconWrapper}>
-        <Text style={styles.moon}>☾</Text>
-        <View style={styles.dome} />
-        <View style={styles.arch} />
+    <LinearGradient colors={colors.gradientPromo as [string, string, string]} style={styles.container}>
+      <View style={styles.logoMark}>
+        <Ionicons name="moon" size={30} color="#FFFFFF" />
       </View>
 
       <Text style={styles.title}>Rihla</Text>
-      <Text style={styles.subtitle}>Din reise mot Allah</Text>
+      <Text style={styles.subtitle}>Your journey towards Allah</Text>
 
       <View style={styles.homeIndicator} />
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F2E23',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconWrapper: {
+  logoMark: {
+    height: 84,
+    width: 84,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginBottom: 24,
-    height: 140,
-  },
-  moon: {
-    fontSize: 28,
-    color: '#5DCAA5',
-    marginBottom: 8,
-  },
-  dome: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#5DCAA5',
-    marginBottom: -4,
-    zIndex: 2,
-  },
-  arch: {
-    width: 90,
-    height: 100,
-    borderTopLeftRadius: 45,
-    borderTopRightRadius: 45,
-    borderWidth: 2,
-    borderColor: '#5DCAA5',
-    borderBottomWidth: 0,
+    justifyContent: 'center',
+    marginBottom: 22,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#fff',
+    fontSize: 34,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 13,
-    color: '#B8C4BF',
+    color: 'rgba(255,255,255,0.7)',
   },
   homeIndicator: {
     position: 'absolute',
@@ -80,6 +64,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#3A4A44',
+    backgroundColor: 'rgba(255,255,255,0.3)',
   },
 });
