@@ -10,7 +10,7 @@ type ThemeContextType = {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
 
   const colors = useMemo(() => (isDark ? darkColors : lightColors), [isDark]);
   const toggleTheme = () => setIsDark((prev) => !prev);

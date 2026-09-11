@@ -6,10 +6,10 @@ import { useTheme } from '@/theme/theme-context';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-const collections: { title: string; subtitle: string; icon: IconName; tint: string }[] = [
-  { title: 'Sahih al-Bukhari', subtitle: '7,563 hadith', icon: 'library-outline', tint: '#4C8DFF' },
-  { title: 'Sahih Muslim', subtitle: '7,190 hadith', icon: 'bookmarks-outline', tint: '#8B5CF6' },
-  { title: '40 Hadith Nawawi', subtitle: '42 hadith', icon: 'ribbon-outline', tint: '#22C3A6' },
+const collections: { title: string; subtitle: string; icon: IconName }[] = [
+  { title: 'Sahih al-Bukhari', subtitle: '7,563 hadith', icon: 'library-outline' },
+  { title: 'Sahih Muslim', subtitle: '7,190 hadith', icon: 'bookmarks-outline' },
+  { title: '40 Hadith Nawawi', subtitle: '42 hadith', icon: 'ribbon-outline' },
 ];
 
 const juzShortcuts = [1, 2, 3, 4, 5, 6];
@@ -32,24 +32,30 @@ export default function LearnScreen() {
           />
         </View>
 
-        <Text style={[styles.overline, { color: colors.textSecondary }]}>CONTINUE READING</Text>
-        <LinearGradient colors={colors.gradientHero as [string, string, string]} style={styles.continueCard}>
+        <Text style={[styles.overline, { color: colors.textTertiary }]}>CONTINUE READING</Text>
+        <LinearGradient
+          colors={colors.heroGradient as [string, string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.continueCard, { shadowColor: colors.heroShadow }]}
+        >
+          <Ionicons name="moon-outline" size={60} color="rgba(255,255,255,0.07)" style={styles.continueEmblem} />
           <View style={styles.continueIcon}>
-            <Ionicons name="book" size={22} color="#FFFFFF" />
+            <Ionicons name="book-outline" size={21} color="#FFFFFF" />
           </View>
           <View style={styles.copy}>
             <Text style={styles.continueTitle}>Al-Fatihah</Text>
             <Text style={styles.continueSub}>The Opening · Verse 1–3</Text>
-            <View style={[styles.progressTrack]}>
-              <View style={[styles.progressFill, { width: '38%', backgroundColor: colors.accent }]} />
+            <View style={styles.progressTrack}>
+              <View style={styles.progressFill} />
             </View>
           </View>
           <View style={styles.continueArrow}>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={17} color="#FFFFFF" />
           </View>
         </LinearGradient>
 
-        <Text style={[styles.overline, { color: colors.textSecondary }]}>JUMP TO JUZ</Text>
+        <Text style={[styles.overline, { color: colors.textTertiary }]}>JUMP TO JUZ</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.juzScroll}>
           {juzShortcuts.map((juz) => (
             <TouchableOpacity key={juz} style={[styles.juzChip, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -59,23 +65,28 @@ export default function LearnScreen() {
         </ScrollView>
 
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Hadith collections</Text>
-        {collections.map((collection) => (
-          <TouchableOpacity key={collection.title} style={[styles.item, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.itemIcon, { backgroundColor: `${collection.tint}26` }]}>
-              <Ionicons name={collection.icon} size={19} color={collection.tint} />
-            </View>
-            <View style={styles.copy}>
-              <Text style={[styles.title, { color: colors.textPrimary }]}>{collection.title}</Text>
-              <Text style={[styles.sub, { color: colors.textSecondary }]}>{collection.subtitle}</Text>
-            </View>
-            <Ionicons name="arrow-forward" size={17} color={colors.textPrimary} />
-          </TouchableOpacity>
-        ))}
+        <View style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
+          {collections.map((collection, index) => (
+            <TouchableOpacity
+              key={collection.title}
+              style={[styles.item, index !== collections.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+            >
+              <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
+                <Ionicons name={collection.icon} size={18} color={colors.textSecondary} />
+              </View>
+              <View style={styles.copy}>
+                <Text style={[styles.title, { color: colors.textPrimary }]}>{collection.title}</Text>
+                <Text style={[styles.sub, { color: colors.textSecondary }]}>{collection.subtitle}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={17} color={colors.textTertiary} />
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Daily reflection</Text>
-        <View style={[styles.reflectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={[styles.reflectionIcon, { backgroundColor: `${colors.gold}26` }]}>
-            <Ionicons name="sunny-outline" size={19} color={colors.gold} />
+        <View style={[styles.reflectionCard, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
+          <View style={[styles.reflectionIcon, { backgroundColor: colors.accentTint }]}>
+            <Ionicons name="sunny-outline" size={18} color={colors.accent} />
           </View>
           <Text style={[styles.reflectionQuote, { color: colors.textPrimary }]}>
             “Indeed, with hardship comes ease.”
@@ -90,36 +101,67 @@ export default function LearnScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { padding: 20, paddingBottom: 130 },
-  heading: { fontSize: 28, fontWeight: '700', letterSpacing: -0.7 },
+  heading: { fontSize: 27, fontWeight: '700', letterSpacing: -0.6 },
   intro: { fontSize: 14, marginTop: 7, marginBottom: 23 },
-  search: { height: 52, borderRadius: 16, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 },
+  search: { height: 50, borderRadius: 16, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 10 },
   input: { flex: 1, fontSize: 14 },
-  overline: { fontSize: 10, fontWeight: '800', letterSpacing: 1, marginTop: 29, marginBottom: 10 },
-  continueCard: { borderRadius: 22, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 13, overflow: 'hidden' },
+  overline: { fontSize: 10, fontWeight: '700', letterSpacing: 1, marginTop: 27, marginBottom: 10 },
+  continueCard: {
+    borderRadius: 22,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    overflow: 'hidden',
+    shadowOpacity: 1,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 6,
+  },
+  continueEmblem: { position: 'absolute', top: -8, right: -4 },
   continueIcon: {
-    height: 46,
-    width: 46,
-    borderRadius: 15,
+    height: 44,
+    width: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.16)',
   },
   copy: { flex: 1 },
-  continueTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-  continueSub: { fontSize: 12, marginTop: 4, color: 'rgba(255,255,255,0.72)' },
+  continueTitle: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  continueSub: { fontSize: 11.5, marginTop: 4, color: 'rgba(255,255,255,0.72)' },
   progressTrack: { height: 4, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.18)', marginTop: 10, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 4 },
-  continueArrow: { height: 34, width: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
+  progressFill: { height: '100%', width: '38%', borderRadius: 4, backgroundColor: '#FFFFFF' },
+  continueArrow: { height: 32, width: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
   juzScroll: { marginHorizontal: -20 },
   juzChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 10, marginLeft: 20 },
   juzChipText: { fontSize: 12, fontWeight: '700' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', letterSpacing: -0.3, marginTop: 31, marginBottom: 12 },
-  item: { borderWidth: 1, borderRadius: 19, padding: 15, flexDirection: 'row', alignItems: 'center', gap: 13, marginBottom: 10 },
-  itemIcon: { height: 40, width: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 15, fontWeight: '600' },
-  sub: { fontSize: 12, marginTop: 4 },
-  reflectionCard: { borderWidth: 1, borderRadius: 20, padding: 18, alignItems: 'flex-start', gap: 10 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.3, marginTop: 30, marginBottom: 12 },
+  groupCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    shadowOpacity: 1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  item: { paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 13 },
+  itemIcon: { height: 38, width: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  title: { fontSize: 14.5, fontWeight: '600' },
+  sub: { fontSize: 11.5, marginTop: 4 },
+  reflectionCard: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 18,
+    alignItems: 'flex-start',
+    gap: 10,
+    shadowOpacity: 1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
   reflectionIcon: { height: 38, width: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  reflectionQuote: { fontSize: 15, fontWeight: '600', lineHeight: 22, fontStyle: 'italic' },
-  reflectionSource: { fontSize: 12 },
+  reflectionQuote: { fontSize: 14.5, fontWeight: '600', lineHeight: 21, fontStyle: 'italic' },
+  reflectionSource: { fontSize: 11.5 },
 });

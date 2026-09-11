@@ -17,7 +17,12 @@ export default function SplashScreen() {
   }, []);
 
   return (
-    <LinearGradient colors={colors.gradientPromo as [string, string, string]} style={styles.container}>
+    <LinearGradient
+      colors={colors.heroGradient as [string, string, string]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
       <View style={styles.logoMark}>
         <Ionicons name="moon" size={30} color="#FFFFFF" />
       </View>
