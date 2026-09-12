@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/theme/theme-context';
 
@@ -39,7 +39,7 @@ const settingsGroups: { title: string; items: { icon: IconName; label: string; v
 ];
 
 export default function ProfileScreen() {
-  const { colors, isDark, toggleTheme } = useTheme();
+  const { colors, isDark } = useTheme();
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
@@ -99,10 +99,11 @@ export default function ProfileScreen() {
             <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={18} color={colors.textSecondary} />
           </View>
           <View style={styles.flex}>
-            <Text style={[styles.itemLabel, { color: colors.textPrimary }]}>Dark mode</Text>
-            <Text style={[styles.itemValue, { color: colors.textSecondary }]}>{isDark ? 'On' : 'Off'}</Text>
+            <Text style={[styles.itemLabel, { color: colors.textPrimary }]}>Appearance</Text>
+            <Text style={[styles.itemValue, { color: colors.textSecondary }]}>
+              System ({isDark ? 'Dark' : 'Light'})
+            </Text>
           </View>
-          <Switch value={isDark} onValueChange={toggleTheme} trackColor={{ true: colors.accent, false: colors.border }} thumbColor="#FFFFFF" />
         </View>
 
         {settingsGroups.map((group) => (
