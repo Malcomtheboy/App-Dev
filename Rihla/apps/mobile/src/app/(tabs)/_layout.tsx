@@ -102,6 +102,7 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="qibla" options={{ href: null }} />
     </Tabs>
   );
 }

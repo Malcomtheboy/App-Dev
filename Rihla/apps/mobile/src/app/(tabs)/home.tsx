@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -88,7 +89,13 @@ export default function HomeScreen() {
 
         <View style={styles.quickRow}>
           {actions.map((action) => (
-            <TouchableOpacity key={action.label} style={styles.quickItem}>
+            <TouchableOpacity
+              key={action.label}
+              style={styles.quickItem}
+              onPress={action.label === 'Qibla' ? () => router.push('/qibla') : undefined}
+              accessibilityRole="button"
+              accessibilityLabel={action.label.replace('\n', ' ')}
+            >
               <View
                 style={[
                   styles.quickIcon,
