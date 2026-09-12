@@ -1,0 +1,11 @@
+{
+    "version": "0.0.1",
+    "configurations": [
+      {
+        "name": "rihla-mobile-web",
+        "runtimeExecutable": "npm",
+        "runtimeArgs": ["--prefix", "Rihla/apps/mobile", "run", "web"],
+        "port": 8081
+      }
+    ]
+  } 

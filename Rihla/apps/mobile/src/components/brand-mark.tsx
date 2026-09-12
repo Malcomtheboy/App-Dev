@@ -20,30 +20,28 @@ export function BrandMark({ size = 64, color }: BrandMarkProps) {
       viewBox="0 0 180 212"
     >
       <Path
-        d="M92 4 C76 10 70 29 81 42 C73 38 70 27 77 15 C81 9 86 5 92 4 Z"
+        d="M98 4 C84 7 75 19 78 32 C82 45 97 51 108 40 C96 44 87 37 87 27 C87 17 91 8 98 4 Z"
         fill={markColor}
       />
       <Path
-        d="M25 181 V111 C25 77 49 51 90 25 C131 51 155 77 155 111 V181"
+        d="M25 181 V137 C25 108 48 83 90 58 C132 83 155 108 155 137 V181"
         fill="none"
         opacity={0.82}
         stroke={markColor}
-        strokeWidth="10"
+        strokeWidth="7"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <Path d="M90 79 L90 64" fill="none" stroke={markColor} strokeWidth="5" strokeLinecap="round" />
-      <Path d="M90 60 C83 64 82 72 87 77 C84 75 83 69 86 65 C88 62 89 61 90 60 Z" fill={markColor} />
       <Path
         d="M57 177 V139 H69 V128 C69 112 78 101 90 101 C102 101 111 112 111 128 V139 H123 V177 Z"
         fill={markColor}
-        opacity={0.66}
+        opacity={0.48}
       />
       <Path
         d="M78 177 V148 C78 140 83 134 90 134 C97 134 102 140 102 148 V177"
         fill="transparent"
       />
-      <Path d="M49 177 H131" fill="none" stroke={markColor} strokeWidth="8" strokeLinecap="round" opacity={0.72} />
+      <Path d="M49 177 H131" fill="none" stroke={markColor} strokeWidth="6" strokeLinecap="round" opacity={0.58} />
     </Svg>
   );
 }

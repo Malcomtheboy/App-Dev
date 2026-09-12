@@ -1,9 +1,7 @@
-import { StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { BrandMark } from '@/components/brand-mark';
 
 const palette = {
   light: {
@@ -29,7 +27,7 @@ const palette = {
 };
 
 export default function OnboardingScreen() {
-  const [selected, setSelected] = useState<'deepen' | 'revert' | null>(null);
+  const [selected, setSelected] = useState<'new' | 'beginner' | 'advanced' | null>(null);
   const colorScheme = useColorScheme();
   const colors = palette[colorScheme === 'dark' ? 'dark' : 'light'];
 
@@ -37,7 +35,16 @@ export default function OnboardingScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={styles.content}>
         <View style={styles.logoCircle}>
-          <BrandMark color={colors.accent} size={48} />
+          <Image
+            accessibilityLabel="Rihla – Din reise mot Allah"
+            resizeMode="contain"
+            source={
+              colorScheme === 'dark'
+                ? require('@/assets/images/rihla-logo-dark.png')
+                : require('@/assets/images/rihla-logo-light.png')
+            }
+            style={styles.logoImage}
+          />
         </View>
 
         <Text style={[styles.title, { color: colors.text }]}>Velkommen til Rihla</Text>
@@ -45,53 +52,74 @@ export default function OnboardingScreen() {
 
         <TouchableOpacity
           accessibilityRole="radio"
-          accessibilityState={{ selected: selected === 'deepen' }}
+          accessibilityState={{ selected: selected === 'new' }}
           style={[
             styles.card,
             { backgroundColor: colors.surface, borderColor: colors.border },
-            selected === 'deepen' && { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+            selected === 'new' && { backgroundColor: colors.accentSoft, borderColor: colors.accent },
           ]}
-          onPress={() => setSelected('deepen')}
+          onPress={() => setSelected('new')}
         >
           <View style={[styles.optionIcon, { backgroundColor: colors.accentSoft }]}>
             <Text style={[styles.optionEmoji, { color: colors.accent }]}>✦</Text>
           </View>
           <View style={styles.optionCopy}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Fordype meg</Text>
-            <Text style={[styles.cardSubtitle, { color: colors.muted }]}>Jeg praktiserer allerede</Text>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Ny muslim / Revert</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.muted }]}>Jeg er ny i troen og vil lære grunnleggende.</Text>
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity
           accessibilityRole="radio"
-          accessibilityState={{ selected: selected === 'revert' }}
+          accessibilityState={{ selected: selected === 'beginner' }}
           style={[
             styles.card,
             { backgroundColor: colors.surface, borderColor: colors.border },
-            selected === 'revert' && { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+            selected === 'beginner' && { backgroundColor: colors.accentSoft, borderColor: colors.accent },
           ]}
-          onPress={() => setSelected('revert')}
+          onPress={() => setSelected('beginner')}
         >
           <View style={[styles.optionIcon, { backgroundColor: colors.accentSoft }]}>
             <Text style={[styles.optionEmoji, { color: colors.accent }]}>⌁</Text>
           </View>
           <View style={styles.optionCopy}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Ny / revert</Text>
-            <Text style={[styles.cardSubtitle, { color: colors.muted }]}>Jeg er tidlig i reisen</Text>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Begynner</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.muted }]}>Jeg har litt kunnskap og vil bygge videre.</Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          accessibilityRole="radio"
+          accessibilityState={{ selected: selected === 'advanced' }}
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+            selected === 'advanced' && { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+          ]}
+          onPress={() => setSelected('advanced')}
+        >
+          <View style={[styles.optionIcon, { backgroundColor: colors.accentSoft }]}>
+            <Text style={[styles.optionEmoji, { color: colors.accent }]}>◆</Text>
+          </View>
+          <View style={styles.optionCopy}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Viderekommen</Text>
+            <Text style={[styles.cardSubtitle, { color: colors.muted }]}>Jeg ønsker å fordype meg mer.</Text>
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.continueButton, { backgroundColor: colors.accent }, !selected && styles.continueDisabled]}
           disabled={!selected}
-          onPress={() => router.replace('/home')}
+          onPress={() => router.replace('/login')}
         >
           <Text style={[styles.continueText, { color: colors.buttonText }]}>Fortsett</Text>
         </TouchableOpacity>
 
-        <Text style={[styles.loginText, { color: colors.muted }]}>
-          Har du konto? <Text style={[styles.loginLink, { color: colors.accent }]}>Logg inn</Text>
-        </Text>
+        <TouchableOpacity onPress={() => router.replace('/login')}>
+          <Text style={[styles.loginText, { color: colors.muted }]}>
+            Har du konto? <Text style={[styles.loginLink, { color: colors.accent }]}>Logg inn</Text>
+          </Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -111,7 +139,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
+  },
+  logoImage: {
+    width: 96,
+    height: 140,
   },
   title: {
     fontSize: 24,
