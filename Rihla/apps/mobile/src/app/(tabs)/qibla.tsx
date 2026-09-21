@@ -2,10 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 import { useTheme } from '@/theme/theme-context';
 
@@ -49,7 +49,7 @@ export default function QiblaScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
 
-  const pulse = useRef(new Animated.Value(0)).current;
+  const pulse = useSharedValue(0);
 
   const setup = useCallback(async () => {
     setLoading(true);
@@ -172,41 +172,23 @@ export default function QiblaScreen() {
 
   useEffect(() => {
     if (!aligned) {
-      pulse.stopAnimation();
-      pulse.setValue(0);
+      cancelAnimation(pulse);
+      pulse.value = withTiming(0, { duration: 200 });
       return;
     }
 
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 1100,
-          useNativeDriver: true,
-        }),
-
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 1100,
-          useNativeDriver: true,
-        }),
-      ])
+    pulse.value = withRepeat(
+      withSequence(withTiming(1, { duration: 1100 }), withTiming(0, { duration: 1100 })),
+      -1
     );
 
-    animation.start();
-
-    return () => animation.stop();
+    return () => cancelAnimation(pulse);
   }, [aligned, pulse]);
 
-  const pulseScale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.18],
-  });
-
-  const pulseOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.12, 0.45],
-  });
+  const auraStyle = useAnimatedStyle(() => ({
+    opacity: aligned ? 0.12 + pulse.value * (0.45 - 0.12) : 0.1,
+    transform: [{ scale: aligned ? 1 + pulse.value * 0.18 : 1 }],
+  }));
 
   return (
     <SafeAreaView
@@ -258,7 +240,9 @@ export default function QiblaScreen() {
             </Text>
           </View>
 
-          <View style={styles.back} />
+          <View style={[styles.logoMark, { backgroundColor: colors.accentTint, borderColor: colors.accent }]}>
+            <Ionicons name="moon-outline" size={17} color={colors.accent} />
+          </View>
         </View>
 
         <View style={styles.intro}>
@@ -327,35 +311,20 @@ export default function QiblaScreen() {
               <View style={styles.directionLine} />
             </View>
 
-            <Animated.View
-              style={[
-                styles.aura,
-                {
-                  opacity: aligned
-                    ? pulseOpacity
-                    : 0.1,
-                  transform: [
-                    {
-                      scale: aligned
-                        ? pulseScale
-                        : 1,
-                    },
-                  ],
-                },
-              ]}
-            />
+            <Animated.View style={[styles.aura, auraStyle]} />
+
+            <View style={styles.degreeBadge}>
+              <Text style={styles.degreeValue}>{Math.abs(Math.round(turn ?? 0))}°</Text>
+              <Text style={styles.degreeCaption}>{aligned ? 'aligned' : turn !== null && turn > 0 ? 'right' : 'left'}</Text>
+            </View>
+
+            <View style={styles.kaabaArch} />
 
             <View style={styles.kaaba}>
-              <View style={styles.roof} />
-
               <View style={styles.kaabaBody}>
-                <View style={styles.band} />
-                <View style={styles.door} />
+                <View style={styles.kaabaBand} />
+                <View style={styles.kaabaDoor} />
               </View>
-
-              <Text style={styles.kaabaLabel}>
-                KAABA
-              </Text>
             </View>
           </View>
 
@@ -638,6 +607,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  logoMark: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   headerTitle: {
     fontSize: 16,
     fontWeight: '700',
@@ -764,49 +742,80 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(134,240,187,0.22)',
   },
 
+  degreeBadge: {
+    position: 'absolute',
+    height: 74,
+    width: 74,
+    borderRadius: 37,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.32)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ translateY: -50 }],
+    zIndex: 3,
+  },
+
+  degreeValue: {
+    color: '#FFFFFF',
+    fontSize: 19,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+
+  degreeCaption: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    marginTop: 2,
+    textTransform: 'uppercase',
+  },
+
+  kaabaArch: {
+    position: 'absolute',
+    bottom: 4,
+    width: 148,
+    height: 66,
+    borderTopLeftRadius: 74,
+    borderTopRightRadius: 74,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+
   kaaba: {
     alignItems: 'center',
     zIndex: 2,
-  },
-
-  roof: {
-    width: 42,
-    height: 11,
-    backgroundColor: '#D7B861',
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
+    transform: [{ translateY: 38 }],
   },
 
   kaabaBody: {
-    width: 50,
-    height: 43,
-    backgroundColor: '#111713',
-    borderRadius: 4,
+    width: 44,
+    height: 36,
+    backgroundColor: '#0B0D0C',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(215,184,97,0.32)',
     alignItems: 'center',
+    overflow: 'hidden',
   },
 
-  band: {
+  kaabaBand: {
     width: '100%',
-    height: 6,
-    marginTop: 9,
-    backgroundColor: '#D7B861',
+    height: 3.5,
+    marginTop: 8,
+    backgroundColor: '#C9A961',
   },
 
-  door: {
-    width: 10,
-    height: 14,
-    marginTop: 5,
-    backgroundColor: '#D7B861',
+  kaabaDoor: {
+    width: 7,
+    height: 11,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#C9A961',
     borderTopLeftRadius: 2,
     borderTopRightRadius: 2,
-  },
-
-  kaabaLabel: {
-    marginTop: 8,
-    color: 'rgba(255,255,255,.68)',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 2.5,
   },
 
   status: {

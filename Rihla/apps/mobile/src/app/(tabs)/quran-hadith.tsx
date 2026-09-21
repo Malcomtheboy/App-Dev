@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Sheet } from '@/components/sheet';
 import { getQuranChapters } from '@/services/quranApi';
 import { useTheme } from '@/theme/theme-context';
 
@@ -28,6 +29,7 @@ const juzStarts = [
 export default function LearnScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const { q } = useLocalSearchParams<{ q?: string }>();
 
   const [tab, setTab] = useState<'quran' | 'hadith'>('quran');
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -35,6 +37,18 @@ export default function LearnScreen() {
   const [search, setSearch] = useState('');
   const [juz, setJuz] = useState<number | null>(null);
   const [juzOpen, setJuzOpen] = useState(false);
+  const [comingSoon, setComingSoon] = useState<{ title: string; subtitle: string } | null>(null);
+
+  // Adjust state during render when an incoming search query changes, rather than in an
+  // effect — this is React's recommended pattern for syncing state from a changing prop.
+  const [handledQuery, setHandledQuery] = useState<string | undefined>(undefined);
+  if (q !== handledQuery) {
+    setHandledQuery(q);
+    if (typeof q === 'string' && q.length > 0) {
+      setTab('quran');
+      setSearch(q);
+    }
+  }
 
   useEffect(() => {
     getQuranChapters()
@@ -371,6 +385,7 @@ export default function LearnScreen() {
               {collections.map((c, i) => (
                 <TouchableOpacity
                   key={c.title}
+                  onPress={() => setComingSoon({ title: c.title, subtitle: c.subtitle })}
                   style={[
                     s.item,
                     i < collections.length - 1 && {
@@ -424,6 +439,15 @@ export default function LearnScreen() {
           </>
         )}
       </ScrollView>
+
+      <Sheet visible={!!comingSoon} onClose={() => setComingSoon(null)} title={comingSoon?.title ?? ''}>
+        <View style={[s.reflectionIcon, { backgroundColor: colors.accentTint, marginBottom: 14 }]}>
+          <Ionicons name="construct-outline" size={19} color={colors.accent} />
+        </View>
+        <Text style={[s.quote, { color: colors.textPrimary, fontStyle: 'normal' }]}>
+          {comingSoon?.subtitle} is on the way — full hadith text and search are coming to Rihla soon.
+        </Text>
+      </Sheet>
     </SafeAreaView>
   );
 }

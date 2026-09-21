@@ -2,19 +2,44 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Sheet } from '@/components/sheet';
 import { useTheme } from '@/theme/theme-context';
 import type { ThemeColors } from '@/theme/colors';
 
 const prayerDots = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 const chartHeights = [20, 35, 29, 48, 39, 57, 50];
 
+const notifications = [
+  { title: 'Maghrib in 20 minutes', time: 'Just now', icon: 'time-outline' as const },
+  { title: "You're on a 7-day streak", time: '2h ago', icon: 'flame-outline' as const },
+  { title: 'New reflection: Surah Al-Asr', time: 'Yesterday', icon: 'book-outline' as const },
+];
+
+const duaOfTheDay = {
+  arabic: 'رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ',
+  translation:
+    'Our Lord, give us good in this world and good in the Hereafter, and protect us from the punishment of the Fire.',
+  source: 'Surah Al-Baqarah, 2:201',
+};
+
 type IconName = keyof typeof Ionicons.glyphMap;
+type SheetKey = 'notifications' | 'insights' | 'lesson' | 'dua';
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const [promoVisible, setPromoVisible] = useState(true);
+  const [sheet, setSheet] = useState<SheetKey | null>(null);
+  const closeSheet = () => setSheet(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const runSearch = () => {
+    const query = searchQuery.trim();
+    if (!query) return;
+    router.push({ pathname: '/(tabs)/quran-hadith', params: { q: query } });
+    setSearchQuery('');
+  };
 
   const actions: { icon: IconName; label: string; featured?: boolean }[] = [
     { icon: 'time-outline', label: 'Prayer\ntimes', featured: true },
@@ -32,9 +57,20 @@ export default function HomeScreen() {
           </View>
           <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="search" size={16} color={colors.textTertiary} />
-            <Text style={[styles.searchText, { color: colors.textTertiary }]}>Search Rihla</Text>
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={runSearch}
+              placeholder="Search Rihla"
+              placeholderTextColor={colors.textTertiary}
+              returnKeyType="search"
+              style={[styles.searchText, styles.searchInput, { color: colors.textPrimary }]}
+            />
           </View>
-          <TouchableOpacity style={[styles.headerIcon, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <TouchableOpacity
+            style={[styles.headerIcon, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => setSheet('notifications')}
+          >
             <Ionicons name="notifications-outline" size={18} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
@@ -92,7 +128,12 @@ export default function HomeScreen() {
             <TouchableOpacity
               key={action.label}
               style={styles.quickItem}
-              onPress={action.label === 'Qibla' ? () => router.push('/qibla') : undefined}
+              onPress={() => {
+                if (action.label === 'Qibla') router.push('/qibla');
+                else if (action.label === 'Prayer\ntimes') router.push('/prayer-times');
+                else if (action.label === 'Quran') router.push('/(tabs)/quran-hadith');
+                else if (action.label === 'Dua') setSheet('dua');
+              }}
               accessibilityRole="button"
               accessibilityLabel={action.label.replace('\n', ' ')}
             >
@@ -112,7 +153,9 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeading}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>This week</Text>
-          <Text style={[styles.sectionLink, { color: colors.textSecondary }]}>Insights</Text>
+          <TouchableOpacity onPress={() => setSheet('insights')}>
+            <Text style={[styles.sectionLink, { color: colors.accent }]}>Insights</Text>
+          </TouchableOpacity>
         </View>
         <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
           <View>
@@ -132,9 +175,14 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeading}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Continue</Text>
-          <Text style={[styles.sectionLink, { color: colors.textSecondary }]}>See all</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/quran-hadith')}>
+            <Text style={[styles.sectionLink, { color: colors.accent }]}>See all</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={[styles.lesson, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
+        <TouchableOpacity
+          style={[styles.lesson, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}
+          onPress={() => setSheet('lesson')}
+        >
           <View style={[styles.lessonBadge, { backgroundColor: colors.accentTint, borderColor: colors.accent }]}>
             <Ionicons name="book-outline" size={20} color={colors.accent} />
           </View>
@@ -151,7 +199,72 @@ export default function HomeScreen() {
           <Metric icon="sparkles-outline" value="02" label="current level" tint={colors.accent} colors={colors} />
         </View>
       </ScrollView>
+
+      <Sheet visible={sheet === 'notifications'} onClose={closeSheet} title="Notifications">
+        {notifications.map((item, index) => (
+          <View
+            key={item.title}
+            style={[styles.notificationRow, index !== notifications.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+          >
+            <View style={[styles.lessonBadge, { height: 36, width: 36, backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
+              <Ionicons name={item.icon} size={16} color={colors.textSecondary} />
+            </View>
+            <View style={styles.flex}>
+              <Text style={[styles.lessonTitle, { color: colors.textPrimary, fontSize: 13.5 }]}>{item.title}</Text>
+              <Text style={[styles.lessonSub, { color: colors.textSecondary }]}>{item.time}</Text>
+            </View>
+          </View>
+        ))}
+      </Sheet>
+
+      <Sheet visible={sheet === 'insights'} onClose={closeSheet} title="This week's insights">
+        <InsightRow label="Prayer consistency" value="82%" note="+6% vs last week" colors={colors} />
+        <InsightRow label="Best day" value="Sunday" note="5 / 5 prayers" colors={colors} />
+        <InsightRow label="Needs attention" value="Isha" note="Missed 3 times this week" colors={colors} last />
+      </Sheet>
+
+      <Sheet visible={sheet === 'lesson'} onClose={closeSheet} title="The meaning of intention">
+        <Text style={[styles.lessonOverline, { color: colors.accent, marginBottom: 10 }]}>FOUNDATIONS · 05 MIN</Text>
+        <Text style={[styles.lessonBody, { color: colors.textPrimary }]}>
+          The Prophet ﷺ said: &quot;Actions are judged by intentions, and every person will get what they intended.&quot;
+        </Text>
+        <Text style={[styles.lessonBody, { color: colors.textSecondary, marginTop: 12 }]}>
+          Before any act of worship — prayer, fasting, charity — pause and renew your niyyah (intention). The same
+          action can carry very different weight depending on why it was done. Sincerity is the foundation everything
+          else is built on.
+        </Text>
+      </Sheet>
+
+      <Sheet visible={sheet === 'dua'} onClose={closeSheet} title="Dua of the day">
+        <Text style={[styles.duaArabic, { color: colors.textPrimary }]}>{duaOfTheDay.arabic}</Text>
+        <Text style={[styles.lessonBody, { color: colors.textPrimary, marginTop: 14 }]}>{duaOfTheDay.translation}</Text>
+        <Text style={[styles.lessonSub, { color: colors.textSecondary, marginTop: 10 }]}>{duaOfTheDay.source}</Text>
+      </Sheet>
     </SafeAreaView>
+  );
+}
+
+function InsightRow({
+  label,
+  value,
+  note,
+  colors,
+  last,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  colors: ThemeColors;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.insightRow, !last && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+      <View style={styles.flex}>
+        <Text style={[styles.lessonTitle, { color: colors.textPrimary, fontSize: 13.5 }]}>{label}</Text>
+        <Text style={[styles.lessonSub, { color: colors.textSecondary }]}>{note}</Text>
+      </View>
+      <Text style={[styles.insightValue, { color: colors.accent }]}>{value}</Text>
+    </View>
   );
 }
 
@@ -194,6 +307,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
   },
   searchText: { fontSize: 13 },
+  searchInput: { flex: 1, padding: 0 },
   headerIcon: { height: 38, width: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
   kicker: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2, marginTop: 30 },
   title: { fontSize: 30, fontWeight: '700', letterSpacing: -1, marginTop: 7, marginBottom: 22 },
@@ -298,6 +412,11 @@ const styles = StyleSheet.create({
   lessonOverline: { fontSize: 9, fontWeight: '700', letterSpacing: 0.7 },
   lessonTitle: { fontSize: 14.5, fontWeight: '600', marginTop: 4 },
   lessonSub: { fontSize: 11.5, marginTop: 3 },
+  lessonBody: { fontSize: 14, lineHeight: 21 },
+  notificationRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  insightRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
+  insightValue: { fontSize: 15, fontWeight: '700' },
+  duaArabic: { fontSize: 20, lineHeight: 34, textAlign: 'right', fontWeight: '600' },
   metrics: { flexDirection: 'row', gap: 10, marginTop: 12 },
   metric: {
     flex: 1,

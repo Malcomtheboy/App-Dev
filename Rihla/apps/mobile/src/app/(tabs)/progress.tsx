@@ -1,22 +1,29 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Sheet } from '@/components/sheet';
+import { usePrayerTimes } from '@/hooks/use-prayer-times';
+import { cancelReminder, notificationsSupported, scheduleDailyReminder, sendCelebration } from '@/services/notifications';
 import { useTheme } from '@/theme/theme-context';
 import type { ThemeColors } from '@/theme/colors';
 
 type IconName = keyof typeof Ionicons.glyphMap;
+type Goal = { id: string; name: string; target: number; current: number; remindDaily: boolean };
+type ShortcutKey = 'goal' | 'reminders' | 'circles';
 
-const goals: [string, string, number][] = [
-  ['Complete five daily prayers', '3 / 5', 60],
-  ['Read Quran', '2 / 7 days', 29],
-  ['Learn a hadith', '1 / 3', 33],
+const initialGoals: Goal[] = [
+  { id: 'g1', name: 'Complete five daily prayers', target: 5, current: 3, remindDaily: false },
+  { id: 'g2', name: 'Read Quran', target: 7, current: 2, remindDaily: false },
+  { id: 'g3', name: 'Learn a hadith', target: 3, current: 1, remindDaily: false },
 ];
 
-const shortcuts: { icon: IconName; title: string; subtitle: string }[] = [
-  { icon: 'flag-outline', title: 'Set a goal', subtitle: 'Build a habit that sticks' },
-  { icon: 'alarm-outline', title: 'Reminders', subtitle: 'Never miss a prayer' },
-  { icon: 'link-outline', title: 'Connected circles', subtitle: 'Link friends & family' },
+const shortcuts: { key: ShortcutKey; icon: IconName; title: string; subtitle: string }[] = [
+  { key: 'goal', icon: 'flag-outline', title: 'Set a goal', subtitle: 'Build a habit that sticks' },
+  { key: 'reminders', icon: 'alarm-outline', title: 'Reminders', subtitle: 'Never miss a prayer' },
+  { key: 'circles', icon: 'link-outline', title: 'Connected circles', subtitle: 'Link friends & family' },
 ];
 
 const watchlist: { icon: IconName; title: string; subtitle: string; value: string; delta: string; up: boolean }[] = [
@@ -25,8 +32,133 @@ const watchlist: { icon: IconName; title: string; subtitle: string; value: strin
   { icon: 'hand-left-outline', title: 'Dua consistency', subtitle: 'This week', value: '54%', delta: '-3%', up: false },
 ];
 
+const prayerNames = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
+
+function makeInviteCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return `RIHLA-${code}`;
+}
+
 export default function ProgressScreen() {
   const { colors } = useTheme();
+  const { times: prayerTimesToday } = usePrayerTimes();
+
+  const [goals, setGoals] = useState<Goal[]>(initialGoals);
+  const [activeSheet, setActiveSheet] = useState<ShortcutKey | null>(null);
+  const closeSheet = () => setActiveSheet(null);
+
+  const [goalName, setGoalName] = useState('');
+  const [goalTarget, setGoalTarget] = useState(3);
+  const [goalRemind, setGoalRemind] = useState(false);
+
+  const [reminders, setReminders] = useState<Record<(typeof prayerNames)[number], boolean>>({
+    Fajr: false,
+    Dhuhr: false,
+    Asr: false,
+    Maghrib: false,
+    Isha: false,
+  });
+  const [reminderBusy, setReminderBusy] = useState<string | null>(null);
+
+  const [circle, setCircle] = useState<string[]>(['Amina', 'Yusuf']);
+  const [circleInput, setCircleInput] = useState('');
+  const [myCode] = useState(makeInviteCode);
+  const [redeemCode, setRedeemCode] = useState('');
+  const [connecting, setConnecting] = useState(false);
+
+  const markGoalDone = (goal: Goal) => {
+    if (goal.current >= goal.target) return;
+    const nextCurrent = goal.current + 1;
+    setGoals((prev) => prev.map((g) => (g.id === goal.id ? { ...g, current: nextCurrent } : g)));
+
+    if (nextCurrent >= goal.target) {
+      Alert.alert('Goal completed', `You finished "${goal.name}" for this week. Nice work.`);
+      void sendCelebration('Goal completed', `You finished "${goal.name}" for this week.`);
+    }
+  };
+
+  const addGoal = async () => {
+    const name = goalName.trim();
+    if (!name) {
+      Alert.alert('Give your goal a name', 'e.g. "Read a page of tafsir daily"');
+      return;
+    }
+    const id = `g${Date.now()}`;
+    setGoals((prev) => [{ id, name, target: goalTarget, current: 0, remindDaily: goalRemind }, ...prev]);
+
+    if (goalRemind) {
+      const scheduled = await scheduleDailyReminder({
+        id: `goal-${id}`,
+        title: 'Goal reminder',
+        body: `Have you worked on "${name}" today?`,
+        hour: 20,
+        minute: 0,
+      });
+      if (!scheduled && notificationsSupported) {
+        Alert.alert('Reminder not set', "We couldn't schedule a notification — check notification permissions in Settings.");
+      }
+    }
+
+    setGoalName('');
+    setGoalTarget(3);
+    setGoalRemind(false);
+    closeSheet();
+    Alert.alert('Goal added', `"${name}" is now on your list for this week.`);
+  };
+
+  const toggleReminder = async (prayer: (typeof prayerNames)[number], value: boolean) => {
+    setReminderBusy(prayer);
+    if (value) {
+      const time = prayerTimesToday?.timeForPrayer(prayer.toLowerCase() as never);
+      const hour = time ? time.getHours() : 5;
+      const minute = time ? time.getMinutes() : 0;
+      const scheduled = await scheduleDailyReminder({
+        id: `prayer-${prayer}`,
+        title: `${prayer} reminder`,
+        body: time ? `It's almost time for ${prayer}.` : `Time to pray ${prayer}.`,
+        hour,
+        minute,
+      });
+      if (scheduled) {
+        setReminders((prev) => ({ ...prev, [prayer]: true }));
+      } else if (!notificationsSupported) {
+        setReminders((prev) => ({ ...prev, [prayer]: true }));
+      } else {
+        Alert.alert('Notifications are off', 'Allow notifications for Rihla in Settings to get prayer reminders.');
+      }
+    } else {
+      await cancelReminder(`prayer-${prayer}`);
+      setReminders((prev) => ({ ...prev, [prayer]: false }));
+    }
+    setReminderBusy(null);
+  };
+
+  const addToCircle = () => {
+    const name = circleInput.trim();
+    if (!name) return;
+    setCircle((prev) => [...prev, name]);
+    setCircleInput('');
+  };
+
+  const copyCode = async () => {
+    await Clipboard.setStringAsync(myCode);
+    Alert.alert('Copied', 'Your invite code is on your clipboard.');
+  };
+
+  const redeemInvite = () => {
+    const code = redeemCode.trim().toUpperCase();
+    if (!code) return;
+    setConnecting(true);
+    setTimeout(() => {
+      setConnecting(false);
+      setRedeemCode('');
+      const name = `Friend (${code.replace('RIHLA-', '')})`;
+      setCircle((prev) => [...prev, name]);
+      Alert.alert("You're connected", `${name} has been added to your circle.`);
+    }, 700);
+  };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
@@ -77,8 +209,9 @@ export default function ProgressScreen() {
         <Text style={[styles.section, { color: colors.textPrimary }]}>Shortcuts</Text>
         <View style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
           {shortcuts.map((item, index) => (
-            <View
+            <TouchableOpacity
               key={item.title}
+              onPress={() => setActiveSheet(item.key)}
               style={[styles.shortcutRow, index !== shortcuts.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
             >
               <View style={[styles.shortcutIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
@@ -89,7 +222,7 @@ export default function ProgressScreen() {
                 <Text style={[styles.shortcutSubtitle, { color: colors.textSecondary }]}>{item.subtitle}</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 
@@ -118,25 +251,174 @@ export default function ProgressScreen() {
           ))}
         </View>
 
-        <Text style={[styles.section, { color: colors.textPrimary }]}>This week</Text>
-        {goals.map(([name, amount, percent]) => (
-          <Goal key={name} name={name} amount={amount} percent={percent} colors={colors} />
+        <View style={styles.sectionHeading}>
+          <Text style={[styles.section, { color: colors.textPrimary, marginTop: 0 }]}>This week</Text>
+          <TouchableOpacity onPress={() => setActiveSheet('goal')}>
+            <Text style={[styles.sectionLink, { color: colors.accent }]}>+ Add goal</Text>
+          </TouchableOpacity>
+        </View>
+        {goals.map((goal) => (
+          <GoalCard key={goal.id} goal={goal} colors={colors} onMarkDone={() => markGoalDone(goal)} />
         ))}
       </ScrollView>
+
+      <Sheet visible={activeSheet === 'goal'} onClose={closeSheet} title="Set a goal">
+        <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>GOAL</Text>
+        <TextInput
+          value={goalName}
+          onChangeText={setGoalName}
+          placeholder="e.g. Read a page of tafsir daily"
+          placeholderTextColor={colors.textTertiary}
+          style={[styles.sheetInput, { backgroundColor: colors.iconCircle, borderColor: colors.border, color: colors.textPrimary }]}
+        />
+
+        <Text style={[styles.sheetLabel, { color: colors.textSecondary, marginTop: 18 }]}>TIMES PER WEEK</Text>
+        <View style={styles.stepperRow}>
+          <TouchableOpacity
+            onPress={() => setGoalTarget((v) => Math.max(1, v - 1))}
+            style={[styles.stepperBtn, { backgroundColor: colors.iconCircle, borderColor: colors.border }]}
+          >
+            <Ionicons name="remove" size={18} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={[styles.stepperValue, { color: colors.textPrimary }]}>{goalTarget}</Text>
+          <TouchableOpacity
+            onPress={() => setGoalTarget((v) => Math.min(7, v + 1))}
+            style={[styles.stepperBtn, { backgroundColor: colors.iconCircle, borderColor: colors.border }]}
+          >
+            <Ionicons name="add" size={18} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.remindRow, { borderColor: colors.border }]}>
+          <View style={styles.flex}>
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Remind me daily</Text>
+            <Text style={[styles.badgeDescription, { color: colors.textSecondary }]}>
+              {notificationsSupported ? 'A nudge every evening at 8 PM' : 'Works once you open Rihla on your phone'}
+            </Text>
+          </View>
+          <Switch value={goalRemind} onValueChange={setGoalRemind} trackColor={{ true: colors.accent, false: colors.border }} thumbColor="#FFFFFF" />
+        </View>
+
+        <TouchableOpacity style={[styles.sheetPrimary, { backgroundColor: colors.accent }]} onPress={addGoal}>
+          <Text style={[styles.sheetPrimaryText, { color: colors.accentOn }]}>Add goal</Text>
+        </TouchableOpacity>
+      </Sheet>
+
+      <Sheet visible={activeSheet === 'reminders'} onClose={closeSheet} title="Reminders">
+        <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
+          {notificationsSupported
+            ? "Get a nudge at each prayer's calculated time, based on your current location."
+            : "Notifications aren't available in this preview — these will work once Rihla is running on your phone."}
+        </Text>
+        {prayerNames.map((prayer, index) => (
+          <View
+            key={prayer}
+            style={[styles.reminderRow, index !== prayerNames.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+          >
+            <Text style={[styles.reminderName, { color: colors.textPrimary }]}>{prayer}</Text>
+            <Switch
+              value={reminders[prayer]}
+              disabled={reminderBusy === prayer}
+              onValueChange={(value) => toggleReminder(prayer, value)}
+              trackColor={{ true: colors.accent, false: colors.border }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+        ))}
+      </Sheet>
+
+      <Sheet visible={activeSheet === 'circles'} onClose={closeSheet} title="Connected circles">
+        <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
+          Share your code so a friend can add you, or enter theirs to connect.
+        </Text>
+
+        <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>YOUR CODE</Text>
+        <View style={[styles.codeCard, { backgroundColor: colors.iconCircle, borderColor: colors.border }]}>
+          <Text style={[styles.codeText, { color: colors.textPrimary }]}>{myCode}</Text>
+          <TouchableOpacity style={[styles.codeCopy, { backgroundColor: colors.accent }]} onPress={copyCode}>
+            <Ionicons name="copy-outline" size={16} color={colors.accentOn} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.sheetLabel, { color: colors.textSecondary, marginTop: 18 }]}>ENTER A CODE</Text>
+        <View style={styles.circleRow}>
+          <TextInput
+            value={redeemCode}
+            onChangeText={setRedeemCode}
+            placeholder="e.g. RIHLA-7XQ2K"
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="characters"
+            style={[styles.circleInput, { backgroundColor: colors.iconCircle, borderColor: colors.border, color: colors.textPrimary }]}
+            onSubmitEditing={redeemInvite}
+            returnKeyType="done"
+          />
+          <TouchableOpacity style={[styles.circleAdd, { backgroundColor: colors.accent }]} onPress={redeemInvite} disabled={connecting}>
+            <Ionicons name={connecting ? 'ellipsis-horizontal' : 'checkmark'} size={20} color={colors.accentOn} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.sheetLabel, { color: colors.textSecondary, marginTop: 18 }]}>CONNECTED ({circle.length})</Text>
+        <View style={styles.circleAddByName}>
+          <TextInput
+            value={circleInput}
+            onChangeText={setCircleInput}
+            placeholder="Or just add a name"
+            placeholderTextColor={colors.textTertiary}
+            style={[styles.circleInput, { backgroundColor: colors.iconCircle, borderColor: colors.border, color: colors.textPrimary }]}
+            onSubmitEditing={addToCircle}
+            returnKeyType="done"
+          />
+          <TouchableOpacity style={[styles.circleAdd, { backgroundColor: colors.iconCircle, borderWidth: 1, borderColor: colors.border }]} onPress={addToCircle}>
+            <Ionicons name="add" size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
+        {circle.map((name) => (
+          <View key={name} style={styles.circleItem}>
+            <View style={[styles.circleAvatar, { backgroundColor: colors.accentTint }]}>
+              <Text style={[styles.circleAvatarText, { color: colors.accent }]}>{name.charAt(0).toUpperCase()}</Text>
+            </View>
+            <Text style={[styles.circleName, { color: colors.textPrimary }]}>{name}</Text>
+          </View>
+        ))}
+      </Sheet>
     </SafeAreaView>
   );
 }
 
-function Goal({ name, amount, percent, colors }: { name: string; amount: string; percent: number; colors: ThemeColors }) {
+function GoalCard({ goal, colors, onMarkDone }: { goal: Goal; colors: ThemeColors; onMarkDone: () => void }) {
+  const percent = Math.min(100, Math.round((goal.current / goal.target) * 100));
+  const complete = goal.current >= goal.target;
+
   return (
     <View style={[styles.goal, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
       <View style={styles.row}>
-        <Text style={[styles.name, { color: colors.textPrimary }]}>{name}</Text>
-        <Text style={[styles.amount, { color: colors.accent }]}>{amount}</Text>
+        <View style={styles.flex}>
+          <Text style={[styles.name, { color: colors.textPrimary }]}>{goal.name}</Text>
+          {complete ? (
+            <View style={styles.completeTag}>
+              <Ionicons name="checkmark-circle" size={13} color={colors.positive} />
+              <Text style={[styles.completeTagText, { color: colors.positive }]}>Completed</Text>
+            </View>
+          ) : goal.remindDaily ? (
+            <View style={styles.completeTag}>
+              <Ionicons name="alarm-outline" size={12} color={colors.textTertiary} />
+              <Text style={[styles.completeTagText, { color: colors.textTertiary }]}>Daily reminder on</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={[styles.amount, { color: colors.accent }]}>
+          {goal.current} / {goal.target}
+        </Text>
       </View>
       <View style={[styles.track, { backgroundColor: colors.border }]}>
         <View style={[styles.fill, { width: `${percent}%`, backgroundColor: colors.accent }]} />
       </View>
+      {!complete && (
+        <TouchableOpacity style={[styles.markDone, { borderColor: colors.border }]} onPress={onMarkDone}>
+          <Ionicons name="add-circle-outline" size={16} color={colors.accent} />
+          <Text style={[styles.markDoneText, { color: colors.accent }]}>Mark today done</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -186,7 +468,7 @@ const styles = StyleSheet.create({
   day: { fontSize: 10, marginTop: 8 },
   section: { fontSize: 17, fontWeight: '700', marginTop: 28, marginBottom: 11 },
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 28, marginBottom: 11 },
-  sectionLink: { fontSize: 11.5, fontWeight: '600' },
+  sectionLink: { fontSize: 11.5, fontWeight: '700' },
   groupCard: {
     borderWidth: 1,
     borderRadius: 20,
@@ -226,9 +508,38 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 2,
   },
-  row: { flexDirection: 'row', justifyContent: 'space-between' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   name: { fontSize: 14, fontWeight: '600' },
   amount: { fontSize: 12, fontWeight: '700' },
   track: { height: 5, borderRadius: 9, overflow: 'hidden', marginTop: 14 },
   fill: { height: '100%', borderRadius: 9 },
+  completeTag: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 5 },
+  completeTagText: { fontSize: 10.5, fontWeight: '700' },
+  markDone: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, borderTopWidth: 1, paddingTop: 12 },
+  markDoneText: { fontSize: 12.5, fontWeight: '700' },
+
+  sheetIntro: { fontSize: 13, lineHeight: 19, marginBottom: 14 },
+  sheetLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  sheetInput: { height: 48, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, marginTop: 8, fontSize: 14 },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 18, marginTop: 10 },
+  stepperBtn: { height: 40, width: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  stepperValue: { fontSize: 20, fontWeight: '700', minWidth: 24, textAlign: 'center' },
+  remindRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20, paddingTop: 16, borderTopWidth: 1 },
+  groupLabel: { fontSize: 14, fontWeight: '600' },
+  badgeDescription: { fontSize: 11.5, marginTop: 3 },
+  sheetPrimary: { height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
+  sheetPrimaryText: { fontSize: 14, fontWeight: '700' },
+  reminderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 },
+  reminderName: { fontSize: 14, fontWeight: '600' },
+  codeCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 8 },
+  codeText: { fontSize: 15, fontWeight: '700', letterSpacing: 1 },
+  codeCopy: { height: 34, width: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  circleRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  circleAddByName: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  circleInput: { flex: 1, height: 48, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, fontSize: 14 },
+  circleAdd: { height: 48, width: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  circleItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  circleAvatar: { height: 34, width: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  circleAvatarText: { fontSize: 13, fontWeight: '700' },
+  circleName: { fontSize: 14, fontWeight: '600' },
 });

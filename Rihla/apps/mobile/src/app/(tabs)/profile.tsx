@@ -1,10 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Sheet } from '@/components/sheet';
 import { useTheme } from '@/theme/theme-context';
+import type { ThemePreference } from '@/theme/theme-context';
 
 type IconName = keyof typeof Ionicons.glyphMap;
+type SheetKey = 'badges' | 'appearance' | 'notifications' | 'location' | 'language' | 'circles' | 'privacy' | 'help' | 'about';
 
 const stats: { label: string; value: string }[] = [
   { label: 'Day streak', value: '07' },
@@ -12,41 +18,92 @@ const stats: { label: string; value: string }[] = [
   { label: 'Points', value: '1.2k' },
 ];
 
-const badges: { icon: IconName; label: string; earned: boolean }[] = [
-  { icon: 'flame-outline', label: '7-day streak', earned: true },
-  { icon: 'book-outline', label: 'First Juz', earned: true },
-  { icon: 'moon-outline', label: 'Night prayer', earned: true },
-  { icon: 'star-outline', label: '30-day streak', earned: false },
+const allBadges: { icon: IconName; label: string; description: string; earned: boolean }[] = [
+  { icon: 'flame-outline', label: '7-day streak', description: 'Complete a prayer 7 days in a row.', earned: true },
+  { icon: 'book-outline', label: 'First Juz', description: 'Finish reading your first Juz.', earned: true },
+  { icon: 'moon-outline', label: 'Night prayer', description: 'Pray Isha five nights in a row.', earned: true },
+  { icon: 'star-outline', label: '30-day streak', description: 'Complete a prayer 30 days in a row.', earned: false },
+  { icon: 'hand-left-outline', label: 'First dua', description: 'Save your first dua.', earned: false },
+  { icon: 'people-outline', label: 'Circle starter', description: 'Connect with a friend or family member.', earned: false },
 ];
 
-const settingsGroups: { title: string; items: { icon: IconName; label: string; value?: string }[] }[] = [
-  {
-    title: 'Preferences',
-    items: [
-      { icon: 'notifications-outline', label: 'Notifications' },
-      { icon: 'location-outline', label: 'Prayer location', value: 'Oslo, NO' },
-      { icon: 'language-outline', label: 'Language', value: 'English' },
-    ],
-  },
-  {
-    title: 'Account',
-    items: [
-      { icon: 'people-outline', label: 'Connected circles' },
-      { icon: 'shield-checkmark-outline', label: 'Privacy & data' },
-      { icon: 'help-circle-outline', label: 'Help & support' },
-    ],
-  },
+const appearanceOptions: { key: ThemePreference; label: string; icon: IconName }[] = [
+  { key: 'light', label: 'Light', icon: 'sunny-outline' },
+  { key: 'dark', label: 'Dark', icon: 'moon-outline' },
+  { key: 'system', label: 'System', icon: 'phone-portrait-outline' },
 ];
+
+const languages = ['English', 'Norsk'];
 
 export default function ProfileScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, preference, setPreference } = useTheme();
+
+  const [sheet, setSheet] = useState<SheetKey | null>(null);
+  const closeSheet = () => setSheet(null);
+
+  const [notifications, setNotifications] = useState({
+    prayerReminders: true,
+    dailyVerse: true,
+    streakAlerts: false,
+    community: false,
+  });
+
+  const [location, setLocation] = useState('Oslo, NO');
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  const [language, setLanguage] = useState('English');
+
+  const [circle, setCircle] = useState<string[]>(['Amina', 'Yusuf']);
+  const [circleInput, setCircleInput] = useState('');
+
+  const [shareUsageData, setShareUsageData] = useState(true);
+
+  const detectLocation = async () => {
+    setLocating(true);
+    setLocationError(null);
+    try {
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) throw new Error('Turn on Location Services to detect your city.');
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') throw new Error('Allow location access to detect your city automatically.');
+
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [address] = await Location.reverseGeocodeAsync(position.coords);
+      const label = [address?.city ?? address?.subregion, address?.country].filter(Boolean).join(', ');
+      if (label) setLocation(label);
+      else throw new Error("Couldn't work out a city name for this position.");
+    } catch (error) {
+      setLocationError(error instanceof Error ? error.message : 'Could not detect your location.');
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const addToCircle = () => {
+    const name = circleInput.trim();
+    if (!name) return;
+    setCircle((prev) => [...prev, name]);
+    setCircleInput('');
+  };
+
+  const confirmSignOut = () => {
+    Alert.alert('Sign out?', 'You can always log back in.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: () => router.replace('/login') },
+    ]);
+  };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={[styles.kicker, { color: colors.accent }]}>YOUR ACCOUNT</Text>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => setSheet('about')}
+          >
             <Ionicons name="settings-outline" size={18} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
@@ -75,12 +132,15 @@ export default function ProfileScreen() {
 
         <View style={styles.sectionHeading}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Badges</Text>
-          <Text style={[styles.sectionLink, { color: colors.textSecondary }]}>See all</Text>
+          <TouchableOpacity onPress={() => setSheet('badges')}>
+            <Text style={[styles.sectionLink, { color: colors.accent }]}>See all</Text>
+          </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.badgeScroll}>
-          {badges.map((badge) => (
-            <View
+          {allBadges.slice(0, 4).map((badge) => (
+            <TouchableOpacity
               key={badge.label}
+              onPress={() => setSheet('badges')}
               style={[
                 styles.badgeCard,
                 { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow },
@@ -90,49 +150,283 @@ export default function ProfileScreen() {
             >
               <Ionicons name={badge.icon} size={22} color={badge.earned ? colors.accent : colors.textTertiary} />
               <Text style={[styles.badgeLabel, { color: colors.textPrimary }]}>{badge.label}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </ScrollView>
 
-        <View style={[styles.themeRow, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
+        <TouchableOpacity
+          style={[styles.themeRow, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}
+          onPress={() => setSheet('appearance')}
+        >
           <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
             <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={18} color={colors.textSecondary} />
           </View>
           <View style={styles.flex}>
             <Text style={[styles.itemLabel, { color: colors.textPrimary }]}>Appearance</Text>
             <Text style={[styles.itemValue, { color: colors.textSecondary }]}>
-              System ({isDark ? 'Dark' : 'Light'})
+              {preference === 'system' ? `System (${isDark ? 'Dark' : 'Light'})` : isDark ? 'Dark' : 'Light'}
             </Text>
           </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        </TouchableOpacity>
+
+        <Text style={[styles.section, { color: colors.textSecondary }]}>Preferences</Text>
+        <View style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
+          <TouchableOpacity style={[styles.groupRow, styles.groupRowBorder, { borderBottomColor: colors.border }]} onPress={() => setSheet('notifications')}>
+            <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
+              <Ionicons name="notifications-outline" size={16} color={colors.textSecondary} />
+            </View>
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Notifications</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.groupRow, styles.groupRowBorder, { borderBottomColor: colors.border }]} onPress={() => setSheet('location')}>
+            <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
+              <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
+            </View>
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Prayer location</Text>
+            <Text style={[styles.groupValue, { color: colors.textSecondary }]}>{location}</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.groupRow} onPress={() => setSheet('language')}>
+            <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
+              <Ionicons name="language-outline" size={16} color={colors.textSecondary} />
+            </View>
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Language</Text>
+            <Text style={[styles.groupValue, { color: colors.textSecondary }]}>{language}</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
         </View>
 
-        {settingsGroups.map((group) => (
-          <View key={group.title}>
-            <Text style={[styles.section, { color: colors.textSecondary }]}>{group.title}</Text>
-            <View style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
-              {group.items.map((item, index) => (
-                <TouchableOpacity
-                  key={item.label}
-                  style={[styles.groupRow, index !== group.items.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-                >
-                  <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
-                    <Ionicons name={item.icon} size={16} color={colors.textSecondary} />
-                  </View>
-                  <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>{item.label}</Text>
-                  {item.value && <Text style={[styles.groupValue, { color: colors.textSecondary }]}>{item.value}</Text>}
-                  <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-                </TouchableOpacity>
-              ))}
+        <Text style={[styles.section, { color: colors.textSecondary }]}>Account</Text>
+        <View style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
+          <TouchableOpacity style={[styles.groupRow, styles.groupRowBorder, { borderBottomColor: colors.border }]} onPress={() => setSheet('circles')}>
+            <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
+              <Ionicons name="people-outline" size={16} color={colors.textSecondary} />
             </View>
-          </View>
-        ))}
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Connected circles</Text>
+            <Text style={[styles.groupValue, { color: colors.textSecondary }]}>{circle.length}</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.signOut, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
+          <TouchableOpacity style={[styles.groupRow, styles.groupRowBorder, { borderBottomColor: colors.border }]} onPress={() => setSheet('privacy')}>
+            <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
+              <Ionicons name="shield-checkmark-outline" size={16} color={colors.textSecondary} />
+            </View>
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Privacy & data</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.groupRow} onPress={() => setSheet('help')}>
+            <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
+              <Ionicons name="help-circle-outline" size={16} color={colors.textSecondary} />
+            </View>
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Help & support</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.signOut, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}
+          onPress={confirmSignOut}
+        >
           <Ionicons name="log-out-outline" size={18} color={colors.negative} />
           <Text style={[styles.signOutText, { color: colors.negative }]}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Sheet visible={sheet === 'badges'} onClose={closeSheet} title="Badges">
+        {allBadges.map((badge, index) => (
+          <View
+            key={badge.label}
+            style={[styles.badgeRow, index !== allBadges.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+          >
+            <View style={[styles.itemIcon, { backgroundColor: badge.earned ? colors.accentTint : colors.iconCircle, borderColor: badge.earned ? colors.accent : colors.iconBorder }]}>
+              <Ionicons name={badge.icon} size={17} color={badge.earned ? colors.accent : colors.textTertiary} />
+            </View>
+            <View style={styles.flex}>
+              <Text style={[styles.groupLabel, { color: colors.textPrimary, flex: undefined }]}>{badge.label}</Text>
+              <Text style={[styles.badgeDescription, { color: colors.textSecondary }]}>{badge.description}</Text>
+            </View>
+            {badge.earned && <Ionicons name="checkmark-circle" size={20} color={colors.accent} />}
+          </View>
+        ))}
+      </Sheet>
+
+      <Sheet visible={sheet === 'appearance'} onClose={closeSheet} title="Appearance">
+        {appearanceOptions.map((option) => (
+          <TouchableOpacity
+            key={option.key}
+            style={styles.optionRow}
+            onPress={() => {
+              setPreference(option.key);
+              closeSheet();
+            }}
+          >
+            <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
+              <Ionicons name={option.icon} size={17} color={colors.textSecondary} />
+            </View>
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>{option.label}</Text>
+            {preference === option.key && <Ionicons name="checkmark-circle" size={20} color={colors.accent} />}
+          </TouchableOpacity>
+        ))}
+      </Sheet>
+
+      <Sheet visible={sheet === 'notifications'} onClose={closeSheet} title="Notifications">
+        <ToggleRow
+          label="Prayer reminders"
+          subtitle="A nudge a few minutes before each prayer"
+          value={notifications.prayerReminders}
+          onValueChange={(v) => setNotifications((prev) => ({ ...prev, prayerReminders: v }))}
+        />
+        <ToggleRow
+          label="Daily verse"
+          subtitle="One ayah to reflect on, every morning"
+          value={notifications.dailyVerse}
+          onValueChange={(v) => setNotifications((prev) => ({ ...prev, dailyVerse: v }))}
+        />
+        <ToggleRow
+          label="Streak alerts"
+          subtitle="Warn me before a streak breaks"
+          value={notifications.streakAlerts}
+          onValueChange={(v) => setNotifications((prev) => ({ ...prev, streakAlerts: v }))}
+        />
+        <ToggleRow
+          label="Circle activity"
+          subtitle="When someone in your circle completes a goal"
+          value={notifications.community}
+          onValueChange={(v) => setNotifications((prev) => ({ ...prev, community: v }))}
+          last
+        />
+      </Sheet>
+
+      <Sheet visible={sheet === 'location'} onClose={closeSheet} title="Prayer location">
+        <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
+          Used to calculate accurate prayer times and Qibla direction for where you are.
+        </Text>
+        <View style={[styles.locationCard, { backgroundColor: colors.iconCircle, borderColor: colors.border }]}>
+          <Ionicons name="location" size={18} color={colors.accent} />
+          <Text style={[styles.locationText, { color: colors.textPrimary }]}>{location}</Text>
+        </View>
+        {locationError && <Text style={[styles.errorText, { color: colors.negative }]}>{locationError}</Text>}
+        <TouchableOpacity
+          style={[styles.sheetPrimary, { backgroundColor: colors.accent }]}
+          onPress={detectLocation}
+          disabled={locating}
+        >
+          {locating ? (
+            <ActivityIndicator color={colors.accentOn} />
+          ) : (
+            <Text style={[styles.sheetPrimaryText, { color: colors.accentOn }]}>Use current location</Text>
+          )}
+        </TouchableOpacity>
+      </Sheet>
+
+      <Sheet visible={sheet === 'language'} onClose={closeSheet} title="Language">
+        {languages.map((option) => (
+          <TouchableOpacity
+            key={option}
+            style={styles.optionRow}
+            onPress={() => {
+              setLanguage(option);
+              closeSheet();
+            }}
+          >
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>{option}</Text>
+            {language === option && <Ionicons name="checkmark-circle" size={20} color={colors.accent} />}
+          </TouchableOpacity>
+        ))}
+        <Text style={[styles.footnote, { color: colors.textTertiary }]}>More languages are on the way.</Text>
+      </Sheet>
+
+      <Sheet visible={sheet === 'circles'} onClose={closeSheet} title="Connected circles">
+        <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
+          Invite friends or family to see each other&apos;s streaks and cheer each other on.
+        </Text>
+        <View style={styles.circleInputRow}>
+          <TextInput
+            value={circleInput}
+            onChangeText={setCircleInput}
+            placeholder="Name or username"
+            placeholderTextColor={colors.textTertiary}
+            style={[styles.circleInput, { backgroundColor: colors.iconCircle, borderColor: colors.border, color: colors.textPrimary }]}
+            onSubmitEditing={addToCircle}
+            returnKeyType="done"
+          />
+          <TouchableOpacity style={[styles.circleAdd, { backgroundColor: colors.accent }]} onPress={addToCircle}>
+            <Ionicons name="add" size={20} color={colors.accentOn} />
+          </TouchableOpacity>
+        </View>
+        {circle.map((name) => (
+          <View key={name} style={styles.circleItem}>
+            <View style={[styles.circleAvatar, { backgroundColor: colors.accentTint }]}>
+              <Text style={[styles.circleAvatarText, { color: colors.accent }]}>{name.charAt(0).toUpperCase()}</Text>
+            </View>
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>{name}</Text>
+          </View>
+        ))}
+      </Sheet>
+
+      <Sheet visible={sheet === 'privacy'} onClose={closeSheet} title="Privacy & data">
+        <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
+          Your prayer stats, goals and bookmarks are stored on this device. Rihla does not sell your data to third
+          parties.
+        </Text>
+        <ToggleRow
+          label="Share anonymous usage data"
+          subtitle="Helps us see which features are useful"
+          value={shareUsageData}
+          onValueChange={setShareUsageData}
+          last
+        />
+      </Sheet>
+
+      <Sheet visible={sheet === 'help'} onClose={closeSheet} title="Help & support">
+        <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
+          Have a question, found a bug, or want to suggest a feature? We read every message.
+        </Text>
+        <View style={[styles.locationCard, { backgroundColor: colors.iconCircle, borderColor: colors.border }]}>
+          <Ionicons name="mail-outline" size={18} color={colors.accent} />
+          <Text style={[styles.locationText, { color: colors.textPrimary }]}>support@rihla.app</Text>
+        </View>
+      </Sheet>
+
+      <Sheet visible={sheet === 'about'} onClose={closeSheet} title="About Rihla">
+        <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
+          Rihla helps you build a consistent, calm daily practice — prayer, Quran and reflection, in one place.
+        </Text>
+        <View style={styles.aboutRow}>
+          <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Version</Text>
+          <Text style={[styles.groupValue, { color: colors.textSecondary }]}>1.0.0</Text>
+        </View>
+      </Sheet>
     </SafeAreaView>
+  );
+}
+
+function ToggleRow({
+  label,
+  subtitle,
+  value,
+  onValueChange,
+  last,
+}: {
+  label: string;
+  subtitle: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+  last?: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.toggleRow, !last && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+      <View style={styles.flex}>
+        <Text style={[styles.groupLabel, { color: colors.textPrimary, flex: undefined }]}>{label}</Text>
+        <Text style={[styles.badgeDescription, { color: colors.textSecondary }]}>{subtitle}</Text>
+      </View>
+      <Switch value={value} onValueChange={onValueChange} trackColor={{ true: colors.accent, false: colors.border }} thumbColor="#FFFFFF" />
+    </View>
   );
 }
 
@@ -175,7 +469,7 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 10, color: 'rgba(255,255,255,0.62)', marginTop: 4 },
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 28, marginBottom: 12 },
   sectionTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.3 },
-  sectionLink: { fontSize: 11.5, fontWeight: '600' },
+  sectionLink: { fontSize: 11.5, fontWeight: '700' },
   badgeScroll: { marginHorizontal: -18 },
   badgeCard: {
     width: 104,
@@ -218,6 +512,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   groupRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
+  groupRowBorder: { borderBottomWidth: 1 },
   groupLabel: { fontSize: 14, fontWeight: '600', flex: 1 },
   groupValue: { fontSize: 12, marginRight: 4 },
   signOut: {
@@ -235,4 +530,23 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   signOutText: { fontSize: 14, fontWeight: '700' },
+
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
+  badgeDescription: { fontSize: 12, marginTop: 3 },
+  optionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  sheetIntro: { fontSize: 13, lineHeight: 19, marginBottom: 14 },
+  locationCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 14, padding: 14 },
+  locationText: { fontSize: 14, fontWeight: '600' },
+  errorText: { fontSize: 12, marginTop: 10 },
+  sheetPrimary: { height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
+  sheetPrimaryText: { fontSize: 14, fontWeight: '700' },
+  footnote: { fontSize: 11, marginTop: 6 },
+  circleInputRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
+  circleInput: { flex: 1, height: 48, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, fontSize: 14 },
+  circleAdd: { height: 48, width: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  circleItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  circleAvatar: { height: 34, width: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  circleAvatarText: { fontSize: 13, fontWeight: '700' },
+  aboutRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 },
 });
