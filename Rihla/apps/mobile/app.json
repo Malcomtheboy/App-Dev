@@ -41,7 +41,12 @@
       ],
       "expo-font",
       "expo-audio",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "sounds": ["./assets/sounds/adhan.wav"]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

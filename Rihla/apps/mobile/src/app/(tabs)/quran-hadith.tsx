@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Sheet } from '@/components/sheet';
+import { juzStarts } from '@/data/juz-starts';
 import { getQuranChapters } from '@/services/quranApi';
 import { useTheme } from '@/theme/theme-context';
 
@@ -14,16 +14,10 @@ type IconName = keyof typeof Ionicons.glyphMap;
 type Chapter = { id: number; nameSimple: string; nameArabic: string; versesCount: number };
 type LastRead = { surahId: number; surahName: string; verseKey: string; ayah: number; updatedAt: number };
 
-const collections: { title: string; subtitle: string; icon: IconName }[] = [
-  { title: 'Sahih al-Bukhari', subtitle: '7,563 hadith', icon: 'library-outline' },
-  { title: 'Sahih Muslim', subtitle: '7,190 hadith', icon: 'bookmarks-outline' },
-  { title: '40 Hadith Nawawi', subtitle: '42 hadith', icon: 'ribbon-outline' },
-];
-
-const juzStarts = [
-  [1,1],[2,142],[2,253],[3,93],[4,24],[4,148],[5,82],[6,111],[7,88],[8,41],
-  [9,93],[11,6],[12,53],[15,1],[17,1],[18,75],[21,1],[23,1],[25,21],[27,56],
-  [29,46],[33,31],[36,28],[39,32],[41,47],[46,1],[51,31],[58,1],[67,1],[78,1],
+const collections: { key: string; title: string; subtitle: string; icon: IconName }[] = [
+  { key: 'bukhari', title: 'Sahih al-Bukhari', subtitle: '7,563 hadith', icon: 'library-outline' },
+  { key: 'muslim', title: 'Sahih Muslim', subtitle: '7,563 hadith', icon: 'bookmarks-outline' },
+  { key: 'nawawi', title: '40 Hadith Nawawi', subtitle: '42 hadith', icon: 'ribbon-outline' },
 ];
 
 export default function LearnScreen() {
@@ -37,7 +31,6 @@ export default function LearnScreen() {
   const [search, setSearch] = useState('');
   const [juz, setJuz] = useState<number | null>(null);
   const [juzOpen, setJuzOpen] = useState(false);
-  const [comingSoon, setComingSoon] = useState<{ title: string; subtitle: string } | null>(null);
 
   // Adjust state during render when an incoming search query changes, rather than in an
   // effect — this is React's recommended pattern for syncing state from a changing prop.
@@ -306,6 +299,31 @@ export default function LearnScreen() {
 
                   <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => router.push('/arabic' as any)}
+                  style={[s.bookmark, {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                  }]}
+                >
+                  <View style={s.bookmarkLeft}>
+                    <View style={[s.bookmarkIcon, { backgroundColor: colors.accentTint }]}>
+                      <Text style={[s.bookmarkArabic, { color: colors.accent }]}>ا</Text>
+                    </View>
+
+                    <View>
+                      <Text style={[s.bookmarkTitle, { color: colors.textPrimary }]}>
+                        Learn Arabic
+                      </Text>
+                      <Text style={[s.bookmarkSub, { color: colors.textSecondary }]}>
+                        Letters, vowel marks and reading
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                </TouchableOpacity>
               </>
             )}
 
@@ -385,7 +403,9 @@ export default function LearnScreen() {
               {collections.map((c, i) => (
                 <TouchableOpacity
                   key={c.title}
-                  onPress={() => setComingSoon({ title: c.title, subtitle: c.subtitle })}
+                  onPress={() =>
+                    router.push({ pathname: '/hadith/[collection]', params: { collection: c.key, name: c.title } })
+                  }
                   style={[
                     s.item,
                     i < collections.length - 1 && {
@@ -439,15 +459,6 @@ export default function LearnScreen() {
           </>
         )}
       </ScrollView>
-
-      <Sheet visible={!!comingSoon} onClose={() => setComingSoon(null)} title={comingSoon?.title ?? ''}>
-        <View style={[s.reflectionIcon, { backgroundColor: colors.accentTint, marginBottom: 14 }]}>
-          <Ionicons name="construct-outline" size={19} color={colors.accent} />
-        </View>
-        <Text style={[s.quote, { color: colors.textPrimary, fontStyle: 'normal' }]}>
-          {comingSoon?.subtitle} is on the way — full hadith text and search are coming to Rihla soon.
-        </Text>
-      </Sheet>
     </SafeAreaView>
   );
 }
@@ -493,6 +504,7 @@ const s = StyleSheet.create({
   bookmark: { borderWidth: 1, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 },
   bookmarkLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   bookmarkIcon: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  bookmarkArabic: { fontSize: 20, fontWeight: '700' },
   bookmarkTitle: { fontSize: 14, fontWeight: '700' },
   bookmarkSub: { fontSize: 11.5, marginTop: 3 },
 

@@ -15,6 +15,9 @@ type Chapter = { id:number; nameSimple:string; nameArabic:string; versesCount:nu
 type Bookmark = { surahId:number; surahName:string; verseKey:string; ayah:number; arabic:string; translation:string; savedAt:number };
 type Reciter = { id:string; name:string };
 
+// Kept outside the component so it reads as a plain module helper, not a render-time call.
+function timestamp() { return Date.now(); }
+
 export default function SurahScreen() {
   const { colors } = useTheme();
   const { id, ayah } = useLocalSearchParams<{ id:string; ayah?:string }>();
@@ -100,7 +103,8 @@ export default function SurahScreen() {
 
   useEffect(() => {
     didScroll.current = false;
-    loadSurah(); loadBookmarks();
+    const id = setTimeout(() => { loadSurah(); loadBookmarks(); }, 0);
+    return () => clearTimeout(id);
   },[loadSurah,loadBookmarks,targetAyah]);
 
   const arabic = (v:any) => v.words?.map((w:any)=>w.textQpcHafs).filter(Boolean).join(' ') ?? '';
@@ -122,9 +126,10 @@ export default function SurahScreen() {
   const saveLastRead = async (index:number) => {
     const v = verses[index]; if (!v) return;
     try {
+      const updatedAt = timestamp();
       await AsyncStorage.setItem('rihla:lastRead',JSON.stringify({
         surahId, surahName:chapter?.nameSimple ?? `Surah ${surahId}`,
-        verseKey:v.verseKey, ayah:index+1, updatedAt:Date.now()
+        verseKey:v.verseKey, ayah:index+1, updatedAt
       }));
     } catch(e) { console.error('Last Read error:',e); }
   };
@@ -140,7 +145,7 @@ export default function SurahScreen() {
         : [...bookmarks,{
             surahId, surahName:chapter?.nameSimple ?? `Surah ${surahId}`,
             verseKey:v.verseKey, ayah:index+1, arabic:arabic(v),
-            translation:cleanTranslation(v), savedAt:Date.now()
+            translation:cleanTranslation(v), savedAt:timestamp()
           }];
       setBookmarks(updated);
       await AsyncStorage.setItem('rihla:bookmarks',JSON.stringify(updated));
@@ -169,7 +174,7 @@ export default function SurahScreen() {
         surahName: chapter?.nameSimple ?? `Surah ${surahId}`,
         verseKey: v.verseKey,
         ayah: index + 1,
-        updatedAt: Date.now()
+        updatedAt: timestamp()
       }));
     } catch(e) {
       console.error('Audio error:', e);
@@ -181,13 +186,17 @@ export default function SurahScreen() {
   useEffect(() => {
     if (!status.didJustFinish || playingIndex===null) return;
     const next = playingIndex+1;
-    if (next<verses.length) playAyah(next);
-    else setPlayingIndex(null);
+    const id = setTimeout(() => {
+      if (next<verses.length) playAyah(next);
+      else setPlayingIndex(null);
+    }, 0);
+    return () => clearTimeout(id);
   },[status.didJustFinish,playingIndex,verses.length,playAyah]);
 
   const toggleAudio = () => {
     if (playingIndex===null) return playAyah(0);
-    status.playing ? player.pause() : player.play();
+    if (status.playing) player.pause();
+    else player.play();
   };
 
   const nextAyah = () => {
@@ -202,7 +211,9 @@ export default function SurahScreen() {
 
   const handleVersePlay = (i:number) => {
     saveLastRead(i);
-    playingIndex===i ? (status.playing ? player.pause() : player.play()) : playAyah(i);
+    if (playingIndex !== i) { playAyah(i); return; }
+    if (status.playing) player.pause();
+    else player.play();
   };
 
   const selectReciter = async (r:Reciter) => {

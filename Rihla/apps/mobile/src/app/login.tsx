@@ -1,63 +1,72 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const palette = {
-  light: { background: '#F7FAF8', surface: '#FFFFFF', border: '#D7E5DD', text: '#123B2F', muted: '#668075', accent: '#0C6048', buttonText: '#FFFFFF' },
-  dark: { background: '#081C17', surface: '#102A22', border: '#24483B', text: '#F3F8F4', muted: '#A7BBB0', accent: '#83D8B5', buttonText: '#062A20' },
-};
+import { useTheme } from '@/theme/theme-context';
 
 export default function LoginScreen() {
+  const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const colors = palette[useColorScheme() === 'dark' ? 'dark' : 'light'];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={styles.content}>
-        <Text style={[styles.title, { color: colors.text }]}>Logg inn</Text>
-        <Text style={[styles.subtitle, { color: colors.muted }]}>Velkommen tilbake</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Log in</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Welcome back</Text>
 
         <TextInput
           autoCapitalize="none"
           keyboardType="email-address"
           onChangeText={setEmail}
-          placeholder="E-post eller telefon"
-          placeholderTextColor={colors.muted}
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          placeholder="Email or phone"
+          placeholderTextColor={colors.textSecondary}
+          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
           value={email}
         />
         <TextInput
           onChangeText={setPassword}
-          placeholder="Passord"
-          placeholderTextColor={colors.muted}
+          placeholder="Password"
+          placeholderTextColor={colors.textSecondary}
           secureTextEntry
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
           value={password}
         />
 
-        <TouchableOpacity style={styles.forgotButton}>
-          <Text style={[styles.forgotText, { color: colors.accent }]}>Glemt passord?</Text>
+        <TouchableOpacity
+          style={styles.forgotButton}
+          onPress={() =>
+            Alert.alert('Not available yet', 'Password reset needs a real backend, which is still being built.')
+          }
+        >
+          <Text style={[styles.forgotText, { color: colors.accent }]}>Forgot password?</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.replace('/home')} style={[styles.primaryButton, { backgroundColor: colors.accent }]}>
-          <Text style={[styles.primaryButtonText, { color: colors.buttonText }]}>Logg inn</Text>
+          <Text style={[styles.primaryButtonText, { color: colors.accentOn }]}>Log in</Text>
         </TouchableOpacity>
 
         <View style={styles.dividerRow}>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <Text style={[styles.dividerText, { color: colors.muted }]}>eller</Text>
+          <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or</Text>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
         </View>
 
-        <TouchableOpacity style={[styles.googleButton, { borderColor: colors.border }]}>
+        <TouchableOpacity
+          style={[styles.googleButton, { borderColor: colors.border }]}
+          onPress={() =>
+            Alert.alert('Not available yet', 'Google sign-in needs a real backend, which is still being built.')
+          }
+        >
           <Text style={styles.googleMark}>G</Text>
-          <Text style={[styles.googleText, { color: colors.text }]}>Fortsett med Google</Text>
+          <Text style={[styles.googleText, { color: colors.textPrimary }]}>Continue with Google</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.replace('/register')} style={styles.footerButton}>
-          <Text style={[styles.footerText, { color: colors.muted }]}>Har du ikke konto? <Text style={{ color: colors.accent, fontWeight: '700' }}>Registrer deg</Text></Text>
+          <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+            Don&apos;t have an account? <Text style={{ color: colors.accent, fontWeight: '700' }}>Sign up</Text>
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

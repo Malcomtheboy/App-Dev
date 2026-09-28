@@ -1,31 +1,23 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Sheet } from '@/components/sheet';
+import { juzStarts } from '@/data/juz-starts';
+import { useConnectedCircle } from '@/hooks/use-connected-circle';
+import { getProgressStats, type ProgressStats } from '@/services/progress-stats';
 import { useTheme } from '@/theme/theme-context';
 import type { ThemePreference } from '@/theme/theme-context';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type SheetKey = 'badges' | 'appearance' | 'notifications' | 'location' | 'language' | 'circles' | 'privacy' | 'help' | 'about';
 
-const stats: { label: string; value: string }[] = [
-  { label: 'Day streak', value: '07' },
-  { label: 'Level', value: '02' },
-  { label: 'Points', value: '1.2k' },
-];
-
-const allBadges: { icon: IconName; label: string; description: string; earned: boolean }[] = [
-  { icon: 'flame-outline', label: '7-day streak', description: 'Complete a prayer 7 days in a row.', earned: true },
-  { icon: 'book-outline', label: 'First Juz', description: 'Finish reading your first Juz.', earned: true },
-  { icon: 'moon-outline', label: 'Night prayer', description: 'Pray Isha five nights in a row.', earned: true },
-  { icon: 'star-outline', label: '30-day streak', description: 'Complete a prayer 30 days in a row.', earned: false },
-  { icon: 'hand-left-outline', label: 'First dua', description: 'Save your first dua.', earned: false },
-  { icon: 'people-outline', label: 'Circle starter', description: 'Connect with a friend or family member.', earned: false },
-];
+type BadgeProgress = { finishedJuz1: boolean; goalCompleted: boolean; askedSomething: boolean };
+const initialBadgeProgress: BadgeProgress = { finishedJuz1: false, goalCompleted: false, askedSomething: false };
 
 const appearanceOptions: { key: ThemePreference; label: string; icon: IconName }[] = [
   { key: 'light', label: 'Light', icon: 'sunny-outline' },
@@ -54,10 +46,52 @@ export default function ProfileScreen() {
 
   const [language, setLanguage] = useState('English');
 
-  const [circle, setCircle] = useState<string[]>(['Amina', 'Yusuf']);
+  const { circle, addMember: addCircleMember } = useConnectedCircle();
   const [circleInput, setCircleInput] = useState('');
 
   const [shareUsageData, setShareUsageData] = useState(true);
+
+  const [progressStats, setProgressStats] = useState<ProgressStats>({ streak: 0, level: 1, completions: 0 });
+  const [badgeProgress, setBadgeProgress] = useState<BadgeProgress>(initialBadgeProgress);
+
+  useFocusEffect(useCallback(() => {
+    getProgressStats().then(setProgressStats);
+
+    Promise.all([
+      AsyncStorage.getItem('rihla:lastRead'),
+      AsyncStorage.getItem('rihla:goals'),
+      AsyncStorage.getItem('rihla:conversations'),
+    ])
+      .then(([lastReadRaw, goalsRaw, conversationsRaw]) => {
+        const lastRead = lastReadRaw ? JSON.parse(lastReadRaw) : null;
+        const [juz2Surah, juz2Ayah] = juzStarts[1];
+        const finishedJuz1 = !!lastRead && (lastRead.surahId > juz2Surah || (lastRead.surahId === juz2Surah && lastRead.ayah >= juz2Ayah));
+
+        const goals = goalsRaw ? JSON.parse(goalsRaw) : [];
+        const goalCompleted = Array.isArray(goals) && goals.some((g: { current: number; target: number }) => g.current >= g.target);
+
+        const conversations = conversationsRaw ? JSON.parse(conversationsRaw) : [];
+        const askedSomething = Array.isArray(conversations) && conversations.length > 0;
+
+        setBadgeProgress({ finishedJuz1, goalCompleted, askedSomething });
+      })
+      .catch(() => {});
+  }, []));
+
+  const stats: { label: string; value: string }[] = [
+    { label: 'Day streak', value: String(progressStats.streak).padStart(2, '0') },
+    { label: 'Level', value: String(progressStats.level).padStart(2, '0') },
+    { label: 'Completions', value: String(progressStats.completions) },
+  ];
+
+  const allBadges: { icon: IconName; label: string; description: string; earned: boolean }[] = [
+    { icon: 'flame-outline', label: '7-day streak', description: 'Stay active 7 days in a row.', earned: progressStats.streak >= 7 },
+    { icon: 'book-outline', label: 'First Juz', description: 'Read up to the end of your first Juz.', earned: badgeProgress.finishedJuz1 },
+    { icon: 'trophy-outline', label: 'Goal completed', description: 'Finish one of your goals.', earned: badgeProgress.goalCompleted },
+    { icon: 'star-outline', label: '30-day streak', description: 'Stay active 30 days in a row.', earned: progressStats.streak >= 30 },
+    { icon: 'chatbubble-ellipses-outline', label: 'First question', description: 'Ask something in the Ask tab.', earned: badgeProgress.askedSomething },
+    { icon: 'people-outline', label: 'Circle starter', description: 'Connect with a friend or family member.', earned: circle.length > 2 },
+  ];
 
   const detectLocation = async () => {
     setLocating(true);
@@ -84,7 +118,7 @@ export default function ProfileScreen() {
   const addToCircle = () => {
     const name = circleInput.trim();
     if (!name) return;
-    setCircle((prev) => [...prev, name]);
+    addCircleMember(name);
     setCircleInput('');
   };
 
@@ -394,7 +428,7 @@ export default function ProfileScreen() {
 
       <Sheet visible={sheet === 'about'} onClose={closeSheet} title="About Rihla">
         <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
-          Rihla helps you build a consistent, calm daily practice — prayer, Quran and reflection, in one place.
+          Rihla helps you build a consistent, calm daily practice: prayer, Quran and reflection, in one place.
         </Text>
         <View style={styles.aboutRow}>
           <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Version</Text>

@@ -1,19 +1,18 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Sheet } from '@/components/sheet';
 import { useTheme } from '@/theme/theme-context';
-import type { ThemeColors } from '@/theme/colors';
 
 const prayerDots = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 const chartHeights = [20, 35, 29, 48, 39, 57, 50];
 
 const notifications = [
   { title: 'Maghrib in 20 minutes', time: 'Just now', icon: 'time-outline' as const },
-  { title: "You're on a 7-day streak", time: '2h ago', icon: 'flame-outline' as const },
   { title: 'New reflection: Surah Al-Asr', time: 'Yesterday', icon: 'book-outline' as const },
 ];
 
@@ -25,7 +24,8 @@ const duaOfTheDay = {
 };
 
 type IconName = keyof typeof Ionicons.glyphMap;
-type SheetKey = 'notifications' | 'insights' | 'lesson' | 'dua';
+type SheetKey = 'notifications' | 'lesson' | 'dua';
+type LastRead = { surahId: number; surahName: string; verseKey: string; ayah: number; updatedAt: number };
 
 export default function HomeScreen() {
   const { colors } = useTheme();
@@ -33,6 +33,18 @@ export default function HomeScreen() {
   const [sheet, setSheet] = useState<SheetKey | null>(null);
   const closeSheet = () => setSheet(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [lastRead, setLastRead] = useState<LastRead | null>(null);
+
+  const loadLastRead = useCallback(async () => {
+    try {
+      const saved = await AsyncStorage.getItem('rihla:lastRead');
+      setLastRead(saved ? JSON.parse(saved) : null);
+    } catch (e) {
+      console.error('Last Read:', e);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadLastRead(); }, [loadLastRead]));
 
   const runSearch = () => {
     const query = searchQuery.trim();
@@ -153,9 +165,6 @@ export default function HomeScreen() {
 
         <View style={styles.sectionHeading}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>This week</Text>
-          <TouchableOpacity onPress={() => setSheet('insights')}>
-            <Text style={[styles.sectionLink, { color: colors.accent }]}>Insights</Text>
-          </TouchableOpacity>
         </View>
         <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
           <View>
@@ -181,23 +190,29 @@ export default function HomeScreen() {
         </View>
         <TouchableOpacity
           style={[styles.lesson, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}
-          onPress={() => setSheet('lesson')}
+          onPress={() =>
+            lastRead
+              ? router.push(`/quran/${lastRead.surahId}?ayah=${lastRead.ayah}` as any)
+              : setSheet('lesson')
+          }
         >
           <View style={[styles.lessonBadge, { backgroundColor: colors.accentTint, borderColor: colors.accent }]}>
             <Ionicons name="book-outline" size={20} color={colors.accent} />
           </View>
           <View style={styles.lessonText}>
-            <Text style={[styles.lessonOverline, { color: colors.textTertiary }]}>FOUNDATIONS · 05 MIN</Text>
-            <Text style={[styles.lessonTitle, { color: colors.textPrimary }]}>The meaning of intention</Text>
-            <Text style={[styles.lessonSub, { color: colors.textSecondary }]}>Start where every act begins.</Text>
+            <Text style={[styles.lessonOverline, { color: colors.textTertiary }]}>
+              {lastRead ? 'CONTINUE READING' : 'FOUNDATIONS · 05 MIN'}
+            </Text>
+            <Text style={[styles.lessonTitle, { color: colors.textPrimary }]}>
+              {lastRead ? lastRead.surahName : 'The meaning of intention'}
+            </Text>
+            <Text style={[styles.lessonSub, { color: colors.textSecondary }]}>
+              {lastRead ? `Ayah ${lastRead.ayah} · pick up where you left off` : 'Start where every act begins.'}
+            </Text>
           </View>
           <Ionicons name="arrow-forward" size={18} color={colors.textTertiary} />
         </TouchableOpacity>
 
-        <View style={styles.metrics}>
-          <Metric icon="flame-outline" value="07" label="day streak" tint={colors.streakIcon} colors={colors} />
-          <Metric icon="sparkles-outline" value="02" label="current level" tint={colors.accent} colors={colors} />
-        </View>
       </ScrollView>
 
       <Sheet visible={sheet === 'notifications'} onClose={closeSheet} title="Notifications">
@@ -217,19 +232,13 @@ export default function HomeScreen() {
         ))}
       </Sheet>
 
-      <Sheet visible={sheet === 'insights'} onClose={closeSheet} title="This week's insights">
-        <InsightRow label="Prayer consistency" value="82%" note="+6% vs last week" colors={colors} />
-        <InsightRow label="Best day" value="Sunday" note="5 / 5 prayers" colors={colors} />
-        <InsightRow label="Needs attention" value="Isha" note="Missed 3 times this week" colors={colors} last />
-      </Sheet>
-
       <Sheet visible={sheet === 'lesson'} onClose={closeSheet} title="The meaning of intention">
         <Text style={[styles.lessonOverline, { color: colors.accent, marginBottom: 10 }]}>FOUNDATIONS · 05 MIN</Text>
         <Text style={[styles.lessonBody, { color: colors.textPrimary }]}>
           The Prophet ﷺ said: &quot;Actions are judged by intentions, and every person will get what they intended.&quot;
         </Text>
         <Text style={[styles.lessonBody, { color: colors.textSecondary, marginTop: 12 }]}>
-          Before any act of worship — prayer, fasting, charity — pause and renew your niyyah (intention). The same
+          Before any act of worship (prayer, fasting, charity), pause and renew your niyyah (intention). The same
           action can carry very different weight depending on why it was done. Sincerity is the foundation everything
           else is built on.
         </Text>
@@ -241,52 +250,6 @@ export default function HomeScreen() {
         <Text style={[styles.lessonSub, { color: colors.textSecondary, marginTop: 10 }]}>{duaOfTheDay.source}</Text>
       </Sheet>
     </SafeAreaView>
-  );
-}
-
-function InsightRow({
-  label,
-  value,
-  note,
-  colors,
-  last,
-}: {
-  label: string;
-  value: string;
-  note: string;
-  colors: ThemeColors;
-  last?: boolean;
-}) {
-  return (
-    <View style={[styles.insightRow, !last && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-      <View style={styles.flex}>
-        <Text style={[styles.lessonTitle, { color: colors.textPrimary, fontSize: 13.5 }]}>{label}</Text>
-        <Text style={[styles.lessonSub, { color: colors.textSecondary }]}>{note}</Text>
-      </View>
-      <Text style={[styles.insightValue, { color: colors.accent }]}>{value}</Text>
-    </View>
-  );
-}
-
-function Metric({
-  icon,
-  value,
-  label,
-  tint,
-  colors,
-}: {
-  icon: IconName;
-  value: string;
-  label: string;
-  tint: string;
-  colors: ThemeColors;
-}) {
-  return (
-    <View style={[styles.metric, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
-      <Ionicons name={icon} size={17} color={tint} />
-      <Text style={[styles.metricValue, { color: colors.textPrimary }]}>{value}</Text>
-      <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{label}</Text>
-    </View>
   );
 }
 
@@ -414,20 +377,5 @@ const styles = StyleSheet.create({
   lessonSub: { fontSize: 11.5, marginTop: 3 },
   lessonBody: { fontSize: 14, lineHeight: 21 },
   notificationRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  insightRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
-  insightValue: { fontSize: 15, fontWeight: '700' },
   duaArabic: { fontSize: 20, lineHeight: 34, textAlign: 'right', fontWeight: '600' },
-  metrics: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  metric: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 15,
-    shadowOpacity: 1,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
-  },
-  metricValue: { fontSize: 20, fontWeight: '700', marginTop: 10 },
-  metricLabel: { fontSize: 11, marginTop: 2 },
 });

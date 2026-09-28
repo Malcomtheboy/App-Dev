@@ -103,6 +103,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen name="qibla" options={{ href: null }} />
+      <Tabs.Screen name="prayer-times" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -18,7 +18,7 @@ export default function SplashScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#00251D' : '#F4F8F6' }]} edges={['top', 'bottom']}>
       <Image
-        accessibilityLabel="Rihla – Din reise mot Allah"
+        accessibilityLabel="Rihla"
         resizeMode="contain"
         source={
           isDark

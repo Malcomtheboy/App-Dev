@@ -361,7 +361,7 @@ export default function QiblaScreen() {
 
           {aligned && (
             <Text style={styles.accepted}>
-              MAY YOUR JOURNEY BE ACCEPTED
+              MAY YOUR PRAYER BE ACCEPTED
             </Text>
           )}
         </LinearGradient>

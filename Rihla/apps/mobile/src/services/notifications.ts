@@ -6,6 +6,12 @@ import { Platform } from 'react-native';
 // there instead of throwing, so screens can call these unconditionally.
 export const notificationsSupported = Platform.OS !== 'web';
 
+// "Beautiful adhan.ogg" by Adam-synagda, Wikimedia Commons, CC0 — trimmed to the
+// opening ~25s (iOS caps custom notification sounds at 30s) and bundled via the
+// expo-notifications config plugin in app.json.
+const ADHAN_SOUND_FILE = 'adhan.wav';
+const ADHAN_CHANNEL_ID = 'prayer-adhan';
+
 if (notificationsSupported) {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -15,6 +21,16 @@ if (notificationsSupported) {
       shouldSetBadge: false,
     }),
   });
+
+  if (Platform.OS === 'android') {
+    Notifications.setNotificationChannelAsync(ADHAN_CHANNEL_ID, {
+      name: 'Prayer times',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: ADHAN_SOUND_FILE,
+    }).catch(() => {
+      // Falls back to the default channel/sound if this device rejects it.
+    });
+  }
 }
 
 export async function ensureNotificationPermission(): Promise<boolean> {
@@ -31,13 +47,15 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 
 // Schedules (or re-schedules) a notification that repeats every day at the given
 // local time. `id` identifies the reminder so toggling it off can cancel the
-// right one, and toggling it back on doesn't stack duplicates.
+// right one, and toggling it back on doesn't stack duplicates. `playAdhan` swaps
+// the default chime for the call-to-prayer sound bundled in the app.
 export async function scheduleDailyReminder(options: {
   id: string;
   title: string;
   body: string;
   hour: number;
   minute: number;
+  playAdhan?: boolean;
 }): Promise<boolean> {
   if (!notificationsSupported) return false;
   const granted = await ensureNotificationPermission();
@@ -48,11 +66,16 @@ export async function scheduleDailyReminder(options: {
   try {
     await Notifications.scheduleNotificationAsync({
       identifier: options.id,
-      content: { title: options.title, body: options.body, sound: true },
+      content: {
+        title: options.title,
+        body: options.body,
+        sound: options.playAdhan ? ADHAN_SOUND_FILE : true,
+      },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour: options.hour,
         minute: options.minute,
+        channelId: options.playAdhan ? ADHAN_CHANNEL_ID : undefined,
       },
     });
     return true;

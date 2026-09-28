@@ -1,23 +1,28 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Sheet } from '@/components/sheet';
+import { useConnectedCircle } from '@/hooks/use-connected-circle';
 import { usePrayerTimes } from '@/hooks/use-prayer-times';
 import { cancelReminder, notificationsSupported, scheduleDailyReminder, sendCelebration } from '@/services/notifications';
+import { recordCompletion } from '@/services/progress-stats';
 import { useTheme } from '@/theme/theme-context';
 import type { ThemeColors } from '@/theme/colors';
+
+const GOALS_KEY = 'rihla:goals';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type Goal = { id: string; name: string; target: number; current: number; remindDaily: boolean };
 type ShortcutKey = 'goal' | 'reminders' | 'circles';
 
 const initialGoals: Goal[] = [
-  { id: 'g1', name: 'Complete five daily prayers', target: 5, current: 3, remindDaily: false },
-  { id: 'g2', name: 'Read Quran', target: 7, current: 2, remindDaily: false },
-  { id: 'g3', name: 'Learn a hadith', target: 3, current: 1, remindDaily: false },
+  { id: 'g1', name: 'Complete five daily prayers', target: 5, current: 0, remindDaily: false },
+  { id: 'g2', name: 'Read Quran', target: 7, current: 0, remindDaily: false },
+  { id: 'g3', name: 'Learn a hadith', target: 3, current: 0, remindDaily: false },
 ];
 
 const shortcuts: { key: ShortcutKey; icon: IconName; title: string; subtitle: string }[] = [
@@ -46,6 +51,7 @@ export default function ProgressScreen() {
   const { times: prayerTimesToday } = usePrayerTimes();
 
   const [goals, setGoals] = useState<Goal[]>(initialGoals);
+  const [goalsLoaded, setGoalsLoaded] = useState(false);
   const [activeSheet, setActiveSheet] = useState<ShortcutKey | null>(null);
   const closeSheet = () => setActiveSheet(null);
 
@@ -62,16 +68,30 @@ export default function ProgressScreen() {
   });
   const [reminderBusy, setReminderBusy] = useState<string | null>(null);
 
-  const [circle, setCircle] = useState<string[]>(['Amina', 'Yusuf']);
+  const { circle, addMember: addCircleMember } = useConnectedCircle();
   const [circleInput, setCircleInput] = useState('');
   const [myCode] = useState(makeInviteCode);
   const [redeemCode, setRedeemCode] = useState('');
   const [connecting, setConnecting] = useState(false);
 
+  useEffect(() => {
+    AsyncStorage.getItem(GOALS_KEY)
+      .then((saved) => {
+        if (saved) setGoals(JSON.parse(saved));
+      })
+      .finally(() => setGoalsLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!goalsLoaded) return;
+    AsyncStorage.setItem(GOALS_KEY, JSON.stringify(goals)).catch(() => {});
+  }, [goals, goalsLoaded]);
+
   const markGoalDone = (goal: Goal) => {
     if (goal.current >= goal.target) return;
     const nextCurrent = goal.current + 1;
     setGoals((prev) => prev.map((g) => (g.id === goal.id ? { ...g, current: nextCurrent } : g)));
+    void recordCompletion();
 
     if (nextCurrent >= goal.target) {
       Alert.alert('Goal completed', `You finished "${goal.name}" for this week. Nice work.`);
@@ -97,7 +117,7 @@ export default function ProgressScreen() {
         minute: 0,
       });
       if (!scheduled && notificationsSupported) {
-        Alert.alert('Reminder not set', "We couldn't schedule a notification — check notification permissions in Settings.");
+        Alert.alert('Reminder not set', "We couldn't schedule a notification. Check notification permissions in Settings.");
       }
     }
 
@@ -120,6 +140,7 @@ export default function ProgressScreen() {
         body: time ? `It's almost time for ${prayer}.` : `Time to pray ${prayer}.`,
         hour,
         minute,
+        playAdhan: true,
       });
       if (scheduled) {
         setReminders((prev) => ({ ...prev, [prayer]: true }));
@@ -138,7 +159,7 @@ export default function ProgressScreen() {
   const addToCircle = () => {
     const name = circleInput.trim();
     if (!name) return;
-    setCircle((prev) => [...prev, name]);
+    addCircleMember(name);
     setCircleInput('');
   };
 
@@ -155,7 +176,7 @@ export default function ProgressScreen() {
       setConnecting(false);
       setRedeemCode('');
       const name = `Friend (${code.replace('RIHLA-', '')})`;
-      setCircle((prev) => [...prev, name]);
+      addCircleMember(name);
       Alert.alert("You're connected", `${name} has been added to your circle.`);
     }, 700);
   };
@@ -163,7 +184,7 @@ export default function ProgressScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={[styles.kicker, { color: colors.accent }]}>YOUR JOURNEY</Text>
+        <Text style={[styles.kicker, { color: colors.accent }]}>THIS WEEK</Text>
         <Text style={[styles.heading, { color: colors.textPrimary }]}>Progress, made visible.</Text>
 
         <LinearGradient
@@ -308,7 +329,7 @@ export default function ProgressScreen() {
         <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
           {notificationsSupported
             ? "Get a nudge at each prayer's calculated time, based on your current location."
-            : "Notifications aren't available in this preview — these will work once Rihla is running on your phone."}
+            : "Notifications aren't available in this preview. They'll work once Rihla is running on your phone."}
         </Text>
         {prayerNames.map((prayer, index) => (
           <View

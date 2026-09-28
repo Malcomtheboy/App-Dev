@@ -1,42 +1,42 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { Image, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const palette = {
-  light: {
-    background: '#F7FAF8',
-    surface: '#FFFFFF',
-    border: '#D7E5DD',
-    text: '#123B2F',
-    muted: '#668075',
-    accent: '#0C6048',
-    accentSoft: '#E3F2EA',
-    buttonText: '#FFFFFF',
-  },
-  dark: {
-    background: '#081C17',
-    surface: '#102A22',
-    border: '#24483B',
-    text: '#F3F8F4',
-    muted: '#A7BBB0',
-    accent: '#83D8B5',
-    accentSoft: '#173C30',
-    buttonText: '#062A20',
-  },
-};
+import { useTheme } from '@/theme/theme-context';
+
+type Level = 'new' | 'beginner' | 'advanced';
+
+const options: { key: Level; icon: keyof typeof Ionicons.glyphMap; title: string; subtitle: string }[] = [
+  { key: 'new', icon: 'sparkles-outline', title: 'New Muslim / revert', subtitle: "I'm new to the faith and want to learn the basics." },
+  { key: 'beginner', icon: 'leaf-outline', title: 'Beginner', subtitle: 'I know a little and want to build on it.' },
+  { key: 'advanced', icon: 'ribbon-outline', title: 'Advanced', subtitle: 'I want to go deeper.' },
+];
 
 export default function OnboardingScreen() {
-  const [selected, setSelected] = useState<'new' | 'beginner' | 'advanced' | null>(null);
+  const [selected, setSelected] = useState<Level | null>(null);
   const colorScheme = useColorScheme();
-  const colors = palette[colorScheme === 'dark' ? 'dark' : 'light'];
+  const { colors } = useTheme();
+
+  const handleContinue = async () => {
+    if (selected) {
+      try {
+        await AsyncStorage.setItem('rihla:experienceLevel', selected);
+      } catch {
+        // Not critical — onboarding still proceeds without it being saved.
+      }
+    }
+    router.replace('/login');
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={styles.content}>
         <View style={styles.logoCircle}>
           <Image
-            accessibilityLabel="Rihla – Din reise mot Allah"
+            accessibilityLabel="Rihla"
             resizeMode="contain"
             source={
               colorScheme === 'dark'
@@ -47,77 +47,42 @@ export default function OnboardingScreen() {
           />
         </View>
 
-        <Text style={[styles.title, { color: colors.text }]}>Velkommen til Rihla</Text>
-        <Text style={[styles.subtitle, { color: colors.muted }]}>Hvor starter reisen din?</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Welcome to Rihla</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Where does your journey start?</Text>
 
-        <TouchableOpacity
-          accessibilityRole="radio"
-          accessibilityState={{ selected: selected === 'new' }}
-          style={[
-            styles.card,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-            selected === 'new' && { backgroundColor: colors.accentSoft, borderColor: colors.accent },
-          ]}
-          onPress={() => setSelected('new')}
-        >
-          <View style={[styles.optionIcon, { backgroundColor: colors.accentSoft }]}>
-            <Text style={[styles.optionEmoji, { color: colors.accent }]}>✦</Text>
-          </View>
-          <View style={styles.optionCopy}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Ny muslim / Revert</Text>
-            <Text style={[styles.cardSubtitle, { color: colors.muted }]}>Jeg er ny i troen og vil lære grunnleggende.</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          accessibilityRole="radio"
-          accessibilityState={{ selected: selected === 'beginner' }}
-          style={[
-            styles.card,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-            selected === 'beginner' && { backgroundColor: colors.accentSoft, borderColor: colors.accent },
-          ]}
-          onPress={() => setSelected('beginner')}
-        >
-          <View style={[styles.optionIcon, { backgroundColor: colors.accentSoft }]}>
-            <Text style={[styles.optionEmoji, { color: colors.accent }]}>⌁</Text>
-          </View>
-          <View style={styles.optionCopy}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Begynner</Text>
-            <Text style={[styles.cardSubtitle, { color: colors.muted }]}>Jeg har litt kunnskap og vil bygge videre.</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          accessibilityRole="radio"
-          accessibilityState={{ selected: selected === 'advanced' }}
-          style={[
-            styles.card,
-            { backgroundColor: colors.surface, borderColor: colors.border },
-            selected === 'advanced' && { backgroundColor: colors.accentSoft, borderColor: colors.accent },
-          ]}
-          onPress={() => setSelected('advanced')}
-        >
-          <View style={[styles.optionIcon, { backgroundColor: colors.accentSoft }]}>
-            <Text style={[styles.optionEmoji, { color: colors.accent }]}>◆</Text>
-          </View>
-          <View style={styles.optionCopy}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Viderekommen</Text>
-            <Text style={[styles.cardSubtitle, { color: colors.muted }]}>Jeg ønsker å fordype meg mer.</Text>
-          </View>
-        </TouchableOpacity>
+        {options.map((option) => (
+          <TouchableOpacity
+            key={option.key}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: selected === option.key }}
+            style={[
+              styles.card,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              selected === option.key && { backgroundColor: colors.accentTint, borderColor: colors.accent },
+            ]}
+            onPress={() => setSelected(option.key)}
+          >
+            <View style={[styles.optionIcon, { backgroundColor: colors.accentTint }]}>
+              <Ionicons name={option.icon} size={18} color={colors.accent} />
+            </View>
+            <View style={styles.optionCopy}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{option.title}</Text>
+              <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>{option.subtitle}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
 
         <TouchableOpacity
           style={[styles.continueButton, { backgroundColor: colors.accent }, !selected && styles.continueDisabled]}
           disabled={!selected}
-          onPress={() => router.replace('/login')}
+          onPress={handleContinue}
         >
-          <Text style={[styles.continueText, { color: colors.buttonText }]}>Fortsett</Text>
+          <Text style={[styles.continueText, { color: colors.accentOn }]}>Continue</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.replace('/login')}>
-          <Text style={[styles.loginText, { color: colors.muted }]}>
-            Har du konto? <Text style={[styles.loginLink, { color: colors.accent }]}>Logg inn</Text>
+          <Text style={[styles.loginText, { color: colors.textSecondary }]}>
+            Already have an account? <Text style={[styles.loginLink, { color: colors.accent }]}>Log in</Text>
           </Text>
         </TouchableOpacity>
       </View>
@@ -128,7 +93,6 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0C0B',
     padding: 24,
   },
   content: {
@@ -148,13 +112,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#fff',
     textAlign: 'center',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 13,
-    color: '#8B928E',
     textAlign: 'center',
     marginBottom: 28,
   },
@@ -173,7 +135,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  optionEmoji: { fontSize: 18, fontWeight: '700' },
   optionCopy: { marginLeft: 12, flex: 1 },
   cardTitle: { fontSize: 15, fontWeight: '700' },
   cardSubtitle: { fontSize: 12, marginTop: 3 },
