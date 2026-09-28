@@ -290,6 +290,17 @@ app.post("/api/ai/ask", async (req, res) => {
   }
 });
 
+// Catches anything that slips past the try/catches above — malformed request
+// bodies, unexpected throws — so a client only ever sees a plain message,
+// never a stack trace with local file paths in it. Express recognises this as
+// the error handler purely by its 4-argument signature, so it must come last.
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Unhandled error:", err);
+  if (res.headersSent) return;
+  const status = (err as { status?: number; statusCode?: number })?.status ?? (err as { statusCode?: number })?.statusCode ?? 500;
+  res.status(status).json({ error: "Something went wrong" });
+});
+
 app.listen(PORT, () => {
   console.log(`Rihla API kjører på http://localhost:${PORT}`);
 });
