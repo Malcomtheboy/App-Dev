@@ -6,7 +6,7 @@ import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { createServerClient } from "@quranjs/api/server";
 import type { ChapterId } from "@quranjs/api";
-import { askGemini, isGeminiConfigured, type ChatTurn } from "./gemini";
+import { askGemini, isGeminiConfigured, type ChatTurn } from "./gemini.js";
 
 dns.setDefaultResultOrder("ipv4first");
 
