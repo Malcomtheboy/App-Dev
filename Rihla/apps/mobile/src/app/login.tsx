@@ -2,13 +2,41 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
+import { auth } from '@/services/firebase';
 import { useTheme } from '@/theme/theme-context';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('Enter your details', 'Please enter your email and password.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      router.replace('/home');
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      const message = code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')
+        ? 'Your email or password is incorrect.'
+        : code.includes('invalid-email')
+          ? 'Enter a valid email address.'
+          : code.includes('network-request-failed')
+            ? 'Check your internet connection and try again.'
+            : 'We could not log you in. Please try again.';
+      Alert.alert('Log in failed', message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
@@ -43,8 +71,12 @@ export default function LoginScreen() {
           <Text style={[styles.forgotText, { color: colors.accent }]}>Forgot password?</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.replace('/home')} style={[styles.primaryButton, { backgroundColor: colors.accent }]}>
-          <Text style={[styles.primaryButtonText, { color: colors.accentOn }]}>Log in</Text>
+        <TouchableOpacity
+          disabled={isSubmitting}
+          onPress={handleLogin}
+          style={[styles.primaryButton, { backgroundColor: colors.accent }, isSubmitting && styles.disabledButton]}
+        >
+          <Text style={[styles.primaryButtonText, { color: colors.accentOn }]}>{isSubmitting ? 'Logging in…' : 'Log in'}</Text>
         </TouchableOpacity>
 
         <View style={styles.dividerRow}>
@@ -82,6 +114,7 @@ const styles = StyleSheet.create({
   forgotButton: { alignSelf: 'flex-end', marginBottom: 24, marginTop: -4 },
   forgotText: { fontSize: 12, fontWeight: '600' },
   primaryButton: { alignItems: 'center', borderRadius: 12, paddingVertical: 16 },
+  disabledButton: { opacity: 0.6 },
   primaryButtonText: { fontSize: 15, fontWeight: '700' },
   dividerRow: { alignItems: 'center', flexDirection: 'row', gap: 12, marginVertical: 22 },
   divider: { flex: 1, height: 1 },

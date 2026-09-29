@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "811879232256",
+    "project_id": "rihla-31cd5",
+    "storage_bucket": "rihla-31cd5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:811879232256:android:6db37664ecccae5088f9e5",
+        "android_client_info": {
+          "package_name": "com.rihla.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "811879232256-op1obbvp450m8j58q7l7d7pc45ht8d92.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD7KUtuYsA0LgnGSHlupG-v_m2-SaeLs7g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "811879232256-op1obbvp450m8j58q7l7d7pc45ht8d92.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

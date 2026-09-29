@@ -8,9 +8,13 @@
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.rihla.app",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
+      "package": "com.rihla.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -44,7 +48,9 @@
       [
         "expo-notifications",
         {
-          "sounds": ["./assets/sounds/adhan.wav"]
+          "sounds": [
+            "./assets/sounds/adhan.wav"
+          ]
         }
       ]
     ],

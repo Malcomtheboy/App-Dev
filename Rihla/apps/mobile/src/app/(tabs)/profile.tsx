@@ -3,12 +3,15 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { Sheet } from '@/components/sheet';
 import { juzStarts } from '@/data/juz-starts';
 import { useConnectedCircle } from '@/hooks/use-connected-circle';
+import { auth, db } from '@/services/firebase';
 import { getProgressStats, type ProgressStats } from '@/services/progress-stats';
 import { useTheme } from '@/theme/theme-context';
 import type { ThemePreference } from '@/theme/theme-context';
@@ -29,6 +32,8 @@ const languages = ['English', 'Norsk'];
 
 export default function ProfileScreen() {
   const { colors, isDark, preference, setPreference } = useTheme();
+  const [user, setUser] = useState<User | null>(auth.currentUser);
+  const [savedProfile, setSavedProfile] = useState<{ uid: string; displayName: string } | null>(null);
 
   const [sheet, setSheet] = useState<SheetKey | null>(null);
   const closeSheet = () => setSheet(null);
@@ -53,6 +58,24 @@ export default function ProfileScreen() {
 
   const [progressStats, setProgressStats] = useState<ProgressStats>({ streak: 0, level: 1, completions: 0 });
   const [badgeProgress, setBadgeProgress] = useState<BadgeProgress>(initialBadgeProgress);
+
+  useEffect(() => onAuthStateChanged(auth, setUser), []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    getDoc(doc(db, 'users', user.uid))
+      .then((snapshot) => {
+        const savedName = snapshot.data()?.displayName;
+        if (typeof savedName === 'string' && savedName.trim()) setSavedProfile({ uid: user.uid, displayName: savedName });
+      })
+      .catch(() => {});
+  }, [user]);
+
+  const displayName = savedProfile?.uid === user?.uid
+    ? savedProfile?.displayName ?? 'Rihla member'
+    : user?.displayName || user?.email?.split('@')[0] || 'Rihla member';
+  const avatarInitial = displayName.trim().charAt(0).toUpperCase() || 'R';
 
   useFocusEffect(useCallback(() => {
     getProgressStats().then(setProgressStats);
@@ -122,10 +145,28 @@ export default function ProfileScreen() {
     setCircleInput('');
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      router.replace('/login');
+    } catch {
+      Alert.alert('Could not sign out', 'Please try again.');
+    }
+  };
+
   const confirmSignOut = () => {
+    if (Platform.OS === 'web') {
+      void handleSignOut();
+      return;
+    }
+
     Alert.alert('Sign out?', 'You can always log back in.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => router.replace('/login') },
+      {
+        text: 'Sign out',
+        style: 'destructive',
+        onPress: () => void handleSignOut(),
+      },
     ]);
   };
 
@@ -150,9 +191,9 @@ export default function ProfileScreen() {
         >
           <Ionicons name="moon-outline" size={80} color="rgba(255,255,255,0.06)" style={styles.heroEmblem} />
           <View style={styles.heroAvatar}>
-            <Text style={styles.heroAvatarText}>A</Text>
+            <Text style={styles.heroAvatarText}>{avatarInitial}</Text>
           </View>
-          <Text style={styles.heroName}>Ahmad</Text>
+          <Text style={styles.heroName}>{displayName}</Text>
           <Text style={styles.heroSubtitle}>Member since Jan 2025</Text>
           <View style={styles.statsRow}>
             {stats.map((stat, index) => (

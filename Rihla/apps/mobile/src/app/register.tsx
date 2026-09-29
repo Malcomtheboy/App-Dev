@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import { Sheet } from '@/components/sheet';
+import { auth, db } from '@/services/firebase';
 import { useTheme } from '@/theme/theme-context';
 
 export default function RegisterScreen() {
@@ -13,8 +16,44 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const canSubmit = acceptedTerms && name.trim().length > 0 && email.trim().length > 0 && password.length > 0;
+
+  const handleRegister = async () => {
+    if (!canSubmit) return;
+
+    const displayName = name.trim();
+    const normalizedEmail = email.trim();
+    setIsSubmitting(true);
+
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+      await updateProfile(credential.user, { displayName });
+      await setDoc(doc(db, 'users', credential.user.uid), {
+        displayName,
+        email: credential.user.email ?? normalizedEmail,
+        createdAt: serverTimestamp(),
+      });
+      router.replace('/home');
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      const message = code.includes('email-already-in-use')
+        ? 'An account already exists with this email.'
+        : code.includes('admin-restricted-operation')
+          ? 'Account creation is currently disabled. Enable sign-up in Firebase Authentication settings.'
+        : code.includes('invalid-email')
+          ? 'Enter a valid email address.'
+          : code.includes('weak-password') || code.includes('password-does-not-meet-requirements')
+            ? 'Your password needs letters and enough characters. Try at least 8 characters with uppercase, lowercase, and a number.'
+            : code.includes('network-request-failed')
+              ? 'Check your internet connection and try again.'
+              : 'We could not create your account. Please try again.';
+      Alert.alert('Sign up failed', message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
@@ -64,11 +103,11 @@ export default function RegisterScreen() {
         </View>
 
         <TouchableOpacity
-          disabled={!canSubmit}
-          onPress={() => router.replace('/home')}
-          style={[styles.primaryButton, { backgroundColor: colors.accent }, !canSubmit && styles.disabledButton]}
+          disabled={!canSubmit || isSubmitting}
+          onPress={handleRegister}
+          style={[styles.primaryButton, { backgroundColor: colors.accent }, (!canSubmit || isSubmitting) && styles.disabledButton]}
         >
-          <Text style={[styles.primaryButtonText, { color: colors.accentOn }]}>Sign up</Text>
+          <Text style={[styles.primaryButtonText, { color: colors.accentOn }]}>{isSubmitting ? 'Creating account…' : 'Sign up'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.replace('/login')} style={styles.footerButton}>
