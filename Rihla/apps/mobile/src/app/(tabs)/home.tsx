@@ -6,10 +6,18 @@ import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Sheet } from '@/components/sheet';
+import { isDuaDoneToday, markDuaDone } from '@/services/dua-log';
+import { getTodayLog, markPrayerDone, PRAYERS, unmarkPrayerDone, type Prayer } from '@/services/prayer-log';
 import { useTheme } from '@/theme/theme-context';
+import { usePrayerTimes } from '@/hooks/use-prayer-times';
 
-const prayerDots = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 const chartHeights = [20, 35, 29, 48, 39, 57, 50];
+
+function formatDayKicker(date: Date) {
+  const weekday = date.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+  const month = date.toLocaleDateString('en-US', { month: 'long' }).toUpperCase();
+  return `${weekday} · ${date.getDate()} ${month}`;
+}
 
 const notifications = [
   { title: 'Maghrib in 20 minutes', time: 'Just now', icon: 'time-outline' as const },
@@ -29,11 +37,14 @@ type LastRead = { surahId: number; surahName: string; verseKey: string; ayah: nu
 
 export default function HomeScreen() {
   const { colors } = useTheme();
+  const { times } = usePrayerTimes();
   const [promoVisible, setPromoVisible] = useState(true);
   const [sheet, setSheet] = useState<SheetKey | null>(null);
   const closeSheet = () => setSheet(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [lastRead, setLastRead] = useState<LastRead | null>(null);
+  const [todayLog, setTodayLog] = useState<Partial<Record<Prayer, { completedAt: number; onTime: boolean }>>>({});
+  const [duaDone, setDuaDone] = useState(false);
 
   const loadLastRead = useCallback(async () => {
     try {
@@ -44,7 +55,44 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { loadLastRead(); }, [loadLastRead]));
+  const loadToday = useCallback(async () => {
+    const [log, dua] = await Promise.all([getTodayLog(), isDuaDoneToday()]);
+    setTodayLog(log);
+    setDuaDone(dua);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadLastRead();
+      loadToday();
+    }, [loadLastRead, loadToday])
+  );
+
+  const prayerTimeFor: Record<Prayer, Date | null> = times
+    ? { Fajr: times.fajr, Dhuhr: times.dhuhr, Asr: times.asr, Maghrib: times.maghrib, Isha: times.isha }
+    : { Fajr: null, Dhuhr: null, Asr: null, Maghrib: null, Isha: null };
+
+  const togglePrayer = async (prayer: Prayer) => {
+    if (todayLog[prayer]) {
+      await unmarkPrayerDone(prayer);
+    } else {
+      const start = prayerTimeFor[prayer];
+      const idx = PRAYERS.indexOf(prayer);
+      const nextStart = prayerTimeFor[PRAYERS[idx + 1]];
+      const end = nextStart ?? new Date(new Date().setHours(23, 59, 59, 999));
+      const now = new Date();
+      const onTime = !!start && now >= start && now < end;
+      await markPrayerDone(prayer, onTime);
+    }
+    await loadToday();
+  };
+
+  const handleMarkDua = async () => {
+    await markDuaDone();
+    setDuaDone(true);
+  };
+
+  const prayersCompletedToday = PRAYERS.filter((p) => todayLog[p]).length;
 
   const runSearch = () => {
     const query = searchQuery.trim();
@@ -87,7 +135,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.kicker, { color: colors.accent }]}>WEDNESDAY · 10 SEPTEMBER</Text>
+        <Text style={[styles.kicker, { color: colors.accent }]}>{formatDayKicker(new Date())}</Text>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Your day, in balance.</Text>
 
         <LinearGradient
@@ -105,16 +153,26 @@ export default function HomeScreen() {
             </View>
           </View>
           <Text style={styles.heroNumber}>
-            3<Text style={styles.heroSlash}> / 5</Text>
+            {prayersCompletedToday}<Text style={styles.heroSlash}> / {PRAYERS.length}</Text>
           </Text>
-          <Text style={styles.heroCaption}>prayers completed today</Text>
+          <Text style={styles.heroCaption}>prayers completed today · tap to check off</Text>
           <View style={styles.prayerDots}>
-            {prayerDots.map((prayer, index) => (
-              <View key={prayer} style={styles.prayerDotItem}>
-                <View style={[styles.dot, index < 3 ? styles.dotDone : index === 3 ? styles.dotNext : styles.dotTodo]} />
-                <Text style={styles.dotLabel}>{prayer}</Text>
-              </View>
-            ))}
+            {PRAYERS.map((prayer) => {
+              const done = !!todayLog[prayer];
+              const isNext = !done && PRAYERS.findIndex((p) => !todayLog[p]) === PRAYERS.indexOf(prayer);
+              return (
+                <TouchableOpacity
+                  key={prayer}
+                  style={styles.prayerDotItem}
+                  onPress={() => togglePrayer(prayer)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Mark ${prayer} ${done ? 'not done' : 'done'}`}
+                >
+                  <View style={[styles.dot, done ? styles.dotDone : isNext ? styles.dotNext : styles.dotTodo]} />
+                  <Text style={styles.dotLabel}>{prayer}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </LinearGradient>
 
@@ -248,6 +306,23 @@ export default function HomeScreen() {
         <Text style={[styles.duaArabic, { color: colors.textPrimary }]}>{duaOfTheDay.arabic}</Text>
         <Text style={[styles.lessonBody, { color: colors.textPrimary, marginTop: 14 }]}>{duaOfTheDay.translation}</Text>
         <Text style={[styles.lessonSub, { color: colors.textSecondary, marginTop: 10 }]}>{duaOfTheDay.source}</Text>
+        <TouchableOpacity
+          style={[
+            styles.duaDoneButton,
+            { borderColor: colors.border, backgroundColor: duaDone ? colors.accentTint : colors.surface },
+          ]}
+          onPress={handleMarkDua}
+          disabled={duaDone}
+        >
+          <Ionicons
+            name={duaDone ? 'checkmark-circle' : 'checkmark-circle-outline'}
+            size={18}
+            color={duaDone ? colors.accent : colors.textSecondary}
+          />
+          <Text style={[styles.duaDoneButtonText, { color: duaDone ? colors.accent : colors.textSecondary }]}>
+            {duaDone ? 'Marked as done today' : 'Mark as done today'}
+          </Text>
+        </TouchableOpacity>
       </Sheet>
     </SafeAreaView>
   );
@@ -378,4 +453,15 @@ const styles = StyleSheet.create({
   lessonBody: { fontSize: 14, lineHeight: 21 },
   notificationRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   duaArabic: { fontSize: 20, lineHeight: 34, textAlign: 'right', fontWeight: '600' },
+  duaDoneButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 14,
+    height: 48,
+    marginTop: 20,
+  },
+  duaDoneButtonText: { fontSize: 13.5, fontWeight: '700' },
 });

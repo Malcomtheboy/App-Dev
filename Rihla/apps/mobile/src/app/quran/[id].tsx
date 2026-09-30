@@ -8,6 +8,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getQuranChapters, getRecitations, getSurahVerses, getVerseAudio } from '@/services/quranApi';
+import { recordVerseRead } from '@/services/reading-log';
 import { useTheme } from '@/theme/theme-context';
 
 type Mode = 'verse' | 'reading';
@@ -131,6 +132,7 @@ export default function SurahScreen() {
         surahId, surahName:chapter?.nameSimple ?? `Surah ${surahId}`,
         verseKey:v.verseKey, ayah:index+1, updatedAt
       }));
+      void recordVerseRead(v.verseKey);
     } catch(e) { console.error('Last Read error:',e); }
   };
 
@@ -176,6 +178,7 @@ export default function SurahScreen() {
         ayah: index + 1,
         updatedAt: timestamp()
       }));
+      void recordVerseRead(v.verseKey);
     } catch(e) {
       console.error('Audio error:', e);
     } finally {

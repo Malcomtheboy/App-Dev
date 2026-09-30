@@ -2,14 +2,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Sheet } from '@/components/sheet';
 import { useConnectedCircle } from '@/hooks/use-connected-circle';
 import { usePrayerTimes } from '@/hooks/use-prayer-times';
 import { cancelReminder, notificationsSupported, scheduleDailyReminder, sendCelebration } from '@/services/notifications';
+import { addDays, daysElapsedThisWeek, startOfWeek } from '@/services/date-key';
+import { getDuaConsistency } from '@/services/dua-log';
+import { getFajrOnTimeRate } from '@/services/prayer-log';
 import { recordCompletion } from '@/services/progress-stats';
+import { getVersesReadInRange } from '@/services/reading-log';
 import { useTheme } from '@/theme/theme-context';
 import type { ThemeColors } from '@/theme/colors';
 
@@ -18,6 +23,7 @@ const GOALS_KEY = 'rihla:goals';
 type IconName = keyof typeof Ionicons.glyphMap;
 type Goal = { id: string; name: string; target: number; current: number; remindDaily: boolean };
 type ShortcutKey = 'goal' | 'reminders' | 'circles';
+type WatchItem = { icon: IconName; title: string; subtitle: string; value: string; delta: string; up: boolean };
 
 const initialGoals: Goal[] = [
   { id: 'g1', name: 'Complete five daily prayers', target: 5, current: 0, remindDaily: false },
@@ -31,13 +37,11 @@ const shortcuts: { key: ShortcutKey; icon: IconName; title: string; subtitle: st
   { key: 'circles', icon: 'link-outline', title: 'Connected circles', subtitle: 'Link friends & family' },
 ];
 
-const watchlist: { icon: IconName; title: string; subtitle: string; value: string; delta: string; up: boolean }[] = [
-  { icon: 'time-outline', title: 'Fajr on time', subtitle: 'This week', value: '92%', delta: '+4%', up: true },
-  { icon: 'book-outline', title: 'Quran pages', subtitle: 'This week', value: '18', delta: '+6', up: true },
-  { icon: 'hand-left-outline', title: 'Dua consistency', subtitle: 'This week', value: '54%', delta: '-3%', up: false },
-];
-
 const prayerNames = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
+
+function formatDelta(diff: number, suffix: string) {
+  return `${diff >= 0 ? '+' : ''}${diff}${suffix}`;
+}
 
 function makeInviteCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -73,6 +77,53 @@ export default function ProgressScreen() {
   const [myCode] = useState(makeInviteCode);
   const [redeemCode, setRedeemCode] = useState('');
   const [connecting, setConnecting] = useState(false);
+
+  const [watchlist, setWatchlist] = useState<WatchItem[]>([]);
+
+  const loadWatchlist = useCallback(async () => {
+    const now = new Date();
+    const weekStart = startOfWeek(now);
+    const elapsed = daysElapsedThisWeek(now);
+    const lastWeekStart = addDays(weekStart, -7);
+
+    const [fajrNow, fajrPrev, versesNow, versesPrev, duaNow, duaPrev] = await Promise.all([
+      getFajrOnTimeRate(weekStart, elapsed),
+      getFajrOnTimeRate(lastWeekStart, 7),
+      getVersesReadInRange(weekStart, elapsed),
+      getVersesReadInRange(lastWeekStart, 7),
+      getDuaConsistency(weekStart, elapsed),
+      getDuaConsistency(lastWeekStart, 7),
+    ]);
+
+    setWatchlist([
+      {
+        icon: 'time-outline',
+        title: 'Fajr on time',
+        subtitle: 'This week',
+        value: `${fajrNow}%`,
+        delta: formatDelta(fajrNow - fajrPrev, '%'),
+        up: fajrNow >= fajrPrev,
+      },
+      {
+        icon: 'book-outline',
+        title: 'Verses read',
+        subtitle: 'This week',
+        value: String(versesNow),
+        delta: formatDelta(versesNow - versesPrev, ''),
+        up: versesNow >= versesPrev,
+      },
+      {
+        icon: 'hand-left-outline',
+        title: 'Dua consistency',
+        subtitle: 'This week',
+        value: `${duaNow}%`,
+        delta: formatDelta(duaNow - duaPrev, '%'),
+        up: duaNow >= duaPrev,
+      },
+    ]);
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadWatchlist(); }, [loadWatchlist]));
 
   useEffect(() => {
     AsyncStorage.getItem(GOALS_KEY)

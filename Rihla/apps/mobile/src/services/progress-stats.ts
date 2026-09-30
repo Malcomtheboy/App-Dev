@@ -1,14 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { dateKey } from './date-key';
 
 const DATES_KEY = 'rihla:activityDates';
 const COMPLETIONS_KEY = 'rihla:totalCompletions';
 
 function today() {
   return new Date();
-}
-
-function dateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
 }
 
 // Call this once per goal-completion tap. Records today as an "active" day
