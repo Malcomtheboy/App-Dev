@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Proposed rules for the "admins" collection used by apps/admin to gate the
+// admin portal. Not deployed yet — review against whatever rules already
+// exist on the Firebase console (rihla-31cd5) before merging, since this
+// file doesn't know about collections Yasir has already written rules for.
+//
+// admins/{uid}: one doc per admin, doc ID = their Firebase Auth uid.
+// - Any signed-in user can read their OWN doc (so the client can check
+//   "am I an admin" after login).
+// - No client can create/update/delete these docs — admins are granted by
+//   adding a doc by hand via the Firebase console or the Admin SDK, never
+//   through the app itself.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+  }
+}

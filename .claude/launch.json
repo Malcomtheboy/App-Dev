@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "Rihla/apps/api", "run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "rihla-admin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "Rihla/apps/admin", "run", "dev", "--", "-p", "3001"],
+      "port": 3001
     }
   ]
 }
