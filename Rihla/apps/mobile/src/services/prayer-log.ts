@@ -42,6 +42,15 @@ export async function unmarkPrayerDone(prayer: Prayer): Promise<void> {
   }
 }
 
+// Prayers checked off (0-5) on each of `days` days starting at `start`.
+export async function getDailyPrayerCounts(start: Date, days: number): Promise<number[]> {
+  const log = await readLog();
+  return Array.from({ length: days }, (_, i) => {
+    const day = log[dateKey(addDays(start, i))] ?? {};
+    return PRAYERS.filter((prayer) => day[prayer]).length;
+  });
+}
+
 // % of days in [weekStart, weekStart + daysElapsed) where Fajr was completed
 // on time. A day with no Fajr entry counts as a miss for that day.
 export async function getFajrOnTimeRate(weekStart: Date, daysElapsed: number): Promise<number> {

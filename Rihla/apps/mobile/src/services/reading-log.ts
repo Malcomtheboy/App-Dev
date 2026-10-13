@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { addDays, dateKey } from './date-key';
+import { recordActivity } from './progress-stats';
 
 const KEY = 'rihla:readingLog';
 
@@ -24,6 +25,7 @@ export async function recordVerseRead(verseKey: string): Promise<void> {
     day.add(verseKey);
     log[key] = [...day];
     await AsyncStorage.setItem(KEY, JSON.stringify(log));
+    void recordActivity();
   } catch {
     // Best-effort — worst case this read doesn't count toward the weekly total.
   }

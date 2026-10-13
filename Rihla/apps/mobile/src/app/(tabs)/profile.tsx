@@ -1,17 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 import { Sheet } from '@/components/sheet';
 import { juzStarts } from '@/data/juz-starts';
 import { useConnectedCircle } from '@/hooks/use-connected-circle';
-import { auth, db } from '@/services/firebase';
+import { usePrayerTimes } from '@/hooks/use-prayer-times';
+import { useProfile } from '@/hooks/use-profile';
+import { useReminders, type ReminderResult } from '@/hooks/use-reminders';
+import { PRAYERS } from '@/services/prayer-log';
+import { auth } from '@/services/firebase';
 import { getProgressStats, type ProgressStats } from '@/services/progress-stats';
 import { useTheme } from '@/theme/theme-context';
 import type { ThemePreference } from '@/theme/theme-context';
@@ -28,54 +30,31 @@ const appearanceOptions: { key: ThemePreference; label: string; icon: IconName }
   { key: 'system', label: 'System', icon: 'phone-portrait-outline' },
 ];
 
-const languages = ['English', 'Norsk'];
-
 export default function ProfileScreen() {
   const { colors, isDark, preference, setPreference } = useTheme();
-  const [user, setUser] = useState<User | null>(auth.currentUser);
-  const [savedProfile, setSavedProfile] = useState<{ uid: string; displayName: string } | null>(null);
+  const { displayName, initial: avatarInitial, memberSince } = useProfile();
 
   const [sheet, setSheet] = useState<SheetKey | null>(null);
   const closeSheet = () => setSheet(null);
 
-  const [notifications, setNotifications] = useState({
-    prayerReminders: true,
-    dailyVerse: true,
-    streakAlerts: false,
-    community: false,
-  });
-
-  const [location, setLocation] = useState('Oslo, NO');
-  const [locating, setLocating] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
-
-  const [language, setLanguage] = useState('English');
+  const { times, place, loading: locating, message: locationError, retry: detectLocation } = usePrayerTimes();
+  const { settings: reminderSettings, setAllPrayers, setDaily } = useReminders(times);
+  const allPrayerRemindersOn = PRAYERS.every((prayer) => reminderSettings.prayers[prayer]);
+  const location = place ?? (locating ? 'Locating…' : 'Not set');
 
   const { circle, addMember: addCircleMember } = useConnectedCircle();
   const [circleInput, setCircleInput] = useState('');
 
-  const [shareUsageData, setShareUsageData] = useState(true);
-
   const [progressStats, setProgressStats] = useState<ProgressStats>({ streak: 0, level: 1, completions: 0 });
   const [badgeProgress, setBadgeProgress] = useState<BadgeProgress>(initialBadgeProgress);
 
-  useEffect(() => onAuthStateChanged(auth, setUser), []);
-
-  useEffect(() => {
-    if (!user) return;
-
-    getDoc(doc(db, 'users', user.uid))
-      .then((snapshot) => {
-        const savedName = snapshot.data()?.displayName;
-        if (typeof savedName === 'string' && savedName.trim()) setSavedProfile({ uid: user.uid, displayName: savedName });
-      })
-      .catch(() => {});
-  }, [user]);
-
-  const displayName = savedProfile?.uid === user?.uid
-    ? savedProfile?.displayName ?? 'Rihla member'
-    : user?.displayName || user?.email?.split('@')[0] || 'Rihla member';
-  const avatarInitial = displayName.trim().charAt(0).toUpperCase() || 'R';
+  const explainReminderResult = (result: ReminderResult) => {
+    if (result === 'denied') {
+      Alert.alert('Notifications are off', 'Allow notifications for Rihla in Settings to turn this on.');
+    } else if (result === 'no-times') {
+      Alert.alert('Location needed', "Rihla needs your location to work out today's prayer times before it can remind you.");
+    }
+  };
 
   useFocusEffect(useCallback(() => {
     getProgressStats().then(setProgressStats);
@@ -113,30 +92,8 @@ export default function ProfileScreen() {
     { icon: 'trophy-outline', label: 'Goal completed', description: 'Finish one of your goals.', earned: badgeProgress.goalCompleted },
     { icon: 'star-outline', label: '30-day streak', description: 'Stay active 30 days in a row.', earned: progressStats.streak >= 30 },
     { icon: 'chatbubble-ellipses-outline', label: 'First question', description: 'Ask something in the Ask tab.', earned: badgeProgress.askedSomething },
-    { icon: 'people-outline', label: 'Circle starter', description: 'Connect with a friend or family member.', earned: circle.length > 2 },
+    { icon: 'people-outline', label: 'Circle starter', description: 'Add someone to your circle.', earned: circle.length > 0 },
   ];
-
-  const detectLocation = async () => {
-    setLocating(true);
-    setLocationError(null);
-    try {
-      const servicesEnabled = await Location.hasServicesEnabledAsync();
-      if (!servicesEnabled) throw new Error('Turn on Location Services to detect your city.');
-
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') throw new Error('Allow location access to detect your city automatically.');
-
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const [address] = await Location.reverseGeocodeAsync(position.coords);
-      const label = [address?.city ?? address?.subregion, address?.country].filter(Boolean).join(', ');
-      if (label) setLocation(label);
-      else throw new Error("Couldn't work out a city name for this position.");
-    } catch (error) {
-      setLocationError(error instanceof Error ? error.message : 'Could not detect your location.');
-    } finally {
-      setLocating(false);
-    }
-  };
 
   const addToCircle = () => {
     const name = circleInput.trim();
@@ -194,7 +151,7 @@ export default function ProfileScreen() {
             <Text style={styles.heroAvatarText}>{avatarInitial}</Text>
           </View>
           <Text style={styles.heroName}>{displayName}</Text>
-          <Text style={styles.heroSubtitle}>Member since Jan 2025</Text>
+          <Text style={styles.heroSubtitle}>{memberSince ? `Member since ${memberSince}` : 'Welcome to Rihla'}</Text>
           <View style={styles.statsRow}>
             {stats.map((stat, index) => (
               <View key={stat.label} style={[styles.statItem, index !== 0 && styles.statDivider]}>
@@ -269,7 +226,7 @@ export default function ProfileScreen() {
               <Ionicons name="language-outline" size={16} color={colors.textSecondary} />
             </View>
             <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Language</Text>
-            <Text style={[styles.groupValue, { color: colors.textSecondary }]}>{language}</Text>
+            <Text style={[styles.groupValue, { color: colors.textSecondary }]}>English</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>
@@ -351,27 +308,21 @@ export default function ProfileScreen() {
       <Sheet visible={sheet === 'notifications'} onClose={closeSheet} title="Notifications">
         <ToggleRow
           label="Prayer reminders"
-          subtitle="A nudge a few minutes before each prayer"
-          value={notifications.prayerReminders}
-          onValueChange={(v) => setNotifications((prev) => ({ ...prev, prayerReminders: v }))}
+          subtitle="A reminder, with the adhan, at each prayer time"
+          value={allPrayerRemindersOn}
+          onValueChange={(v) => setAllPrayers(v).then(explainReminderResult)}
         />
         <ToggleRow
           label="Daily verse"
-          subtitle="One ayah to reflect on, every morning"
-          value={notifications.dailyVerse}
-          onValueChange={(v) => setNotifications((prev) => ({ ...prev, dailyVerse: v }))}
+          subtitle="A morning nudge at 07:30 to read an ayah"
+          value={reminderSettings.dailyVerse}
+          onValueChange={(v) => setDaily('dailyVerse', v).then(explainReminderResult)}
         />
         <ToggleRow
           label="Streak alerts"
-          subtitle="Warn me before a streak breaks"
-          value={notifications.streakAlerts}
-          onValueChange={(v) => setNotifications((prev) => ({ ...prev, streakAlerts: v }))}
-        />
-        <ToggleRow
-          label="Circle activity"
-          subtitle="When someone in your circle completes a goal"
-          value={notifications.community}
-          onValueChange={(v) => setNotifications((prev) => ({ ...prev, community: v }))}
+          subtitle="An evening nudge at 20:30 to keep your streak"
+          value={reminderSettings.streakAlert}
+          onValueChange={(v) => setDaily('streakAlert', v).then(explainReminderResult)}
           last
         />
       </Sheet>
@@ -399,20 +350,11 @@ export default function ProfileScreen() {
       </Sheet>
 
       <Sheet visible={sheet === 'language'} onClose={closeSheet} title="Language">
-        {languages.map((option) => (
-          <TouchableOpacity
-            key={option}
-            style={styles.optionRow}
-            onPress={() => {
-              setLanguage(option);
-              closeSheet();
-            }}
-          >
-            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>{option}</Text>
-            {language === option && <Ionicons name="checkmark-circle" size={20} color={colors.accent} />}
-          </TouchableOpacity>
-        ))}
-        <Text style={[styles.footnote, { color: colors.textTertiary }]}>More languages are on the way.</Text>
+        <TouchableOpacity style={styles.optionRow} onPress={closeSheet}>
+          <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>English</Text>
+          <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+        </TouchableOpacity>
+        <Text style={[styles.footnote, { color: colors.textTertiary }]}>More languages, including Norwegian, are on the way.</Text>
       </Sheet>
 
       <Sheet visible={sheet === 'circles'} onClose={closeSheet} title="Connected circles">
@@ -445,16 +387,9 @@ export default function ProfileScreen() {
 
       <Sheet visible={sheet === 'privacy'} onClose={closeSheet} title="Privacy & data">
         <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
-          Your prayer stats, goals and bookmarks are stored on this device. Rihla does not sell your data to third
-          parties.
+          Your prayer log, goals, reading history and bookmarks are stored on this device. Rihla does not sell your
+          data to third parties, and the app does not collect usage analytics.
         </Text>
-        <ToggleRow
-          label="Share anonymous usage data"
-          subtitle="Helps us see which features are useful"
-          value={shareUsageData}
-          onValueChange={setShareUsageData}
-          last
-        />
       </Sheet>
 
       <Sheet visible={sheet === 'help'} onClose={closeSheet} title="Help & support">

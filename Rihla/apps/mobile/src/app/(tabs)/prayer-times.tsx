@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Sheet } from '@/components/sheet';
 import { calculationMethods, usePrayerTimes } from '@/hooks/use-prayer-times';
+import { formatClock as formatTime, formatCountdown } from '@/services/time-format';
 import { useTheme } from '@/theme/theme-context';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -22,17 +23,6 @@ const prayerMeta: { key: Exclude<PrayerName, 'none'>; label: string; icon: IconN
   { key: Prayer.Isha, label: 'Isha', icon: 'moon' },
 ];
 
-function formatTime(date: Date) {
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatCountdown(ms: number) {
-  const totalMinutes = Math.max(0, Math.floor(ms / 60000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours <= 0) return `${minutes}m`;
-  return `${hours}h ${minutes}m`;
-}
 
 export default function PrayerTimesScreen() {
   const { colors } = useTheme();

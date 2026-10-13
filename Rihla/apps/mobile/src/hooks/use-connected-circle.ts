@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 const STORAGE_KEY = 'rihla:connectedCircle';
-const defaultCircle = ['Amina', 'Yusuf'];
+const defaultCircle: string[] = [];
 
 // Shared across Progress and Profile — both screens read/write the same
 // AsyncStorage key and reload on focus, so adding someone in one place shows

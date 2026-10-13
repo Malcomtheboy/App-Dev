@@ -9,7 +9,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Sheet } from '@/components/sheet';
 import { useConnectedCircle } from '@/hooks/use-connected-circle';
 import { usePrayerTimes } from '@/hooks/use-prayer-times';
-import { cancelReminder, notificationsSupported, scheduleDailyReminder, sendCelebration } from '@/services/notifications';
+import { useReminders } from '@/hooks/use-reminders';
+import { useWeekPrayerStats } from '@/hooks/use-week-prayer-stats';
+import { notificationsSupported, scheduleDailyReminder, sendCelebration } from '@/services/notifications';
 import { addDays, daysElapsedThisWeek, startOfWeek } from '@/services/date-key';
 import { getDuaConsistency } from '@/services/dua-log';
 import { getFajrOnTimeRate } from '@/services/prayer-log';
@@ -39,6 +41,13 @@ const shortcuts: { key: ShortcutKey; icon: IconName; title: string; subtitle: st
 
 const prayerNames = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
 
+function scoreCaption(score: number) {
+  if (score >= 80) return 'Beautiful consistency. Keep going.';
+  if (score >= 50) return 'You are building consistency.';
+  if (score > 0) return 'A steady start. Every prayer counts.';
+  return 'Check off a prayer on Home to begin.';
+}
+
 function formatDelta(diff: number, suffix: string) {
   return `${diff >= 0 ? '+' : ''}${diff}${suffix}`;
 }
@@ -52,7 +61,9 @@ function makeInviteCode() {
 
 export default function ProgressScreen() {
   const { colors } = useTheme();
-  const { times: prayerTimesToday } = usePrayerTimes();
+  const { times } = usePrayerTimes();
+  const { settings: reminderSettings, setPrayer } = useReminders(times);
+  const week = useWeekPrayerStats();
 
   const [goals, setGoals] = useState<Goal[]>(initialGoals);
   const [goalsLoaded, setGoalsLoaded] = useState(false);
@@ -63,13 +74,6 @@ export default function ProgressScreen() {
   const [goalTarget, setGoalTarget] = useState(3);
   const [goalRemind, setGoalRemind] = useState(false);
 
-  const [reminders, setReminders] = useState<Record<(typeof prayerNames)[number], boolean>>({
-    Fajr: false,
-    Dhuhr: false,
-    Asr: false,
-    Maghrib: false,
-    Isha: false,
-  });
   const [reminderBusy, setReminderBusy] = useState<string | null>(null);
 
   const { circle, addMember: addCircleMember } = useConnectedCircle();
@@ -181,28 +185,11 @@ export default function ProgressScreen() {
 
   const toggleReminder = async (prayer: (typeof prayerNames)[number], value: boolean) => {
     setReminderBusy(prayer);
-    if (value) {
-      const time = prayerTimesToday?.timeForPrayer(prayer.toLowerCase() as never);
-      const hour = time ? time.getHours() : 5;
-      const minute = time ? time.getMinutes() : 0;
-      const scheduled = await scheduleDailyReminder({
-        id: `prayer-${prayer}`,
-        title: `${prayer} reminder`,
-        body: time ? `It's almost time for ${prayer}.` : `Time to pray ${prayer}.`,
-        hour,
-        minute,
-        playAdhan: true,
-      });
-      if (scheduled) {
-        setReminders((prev) => ({ ...prev, [prayer]: true }));
-      } else if (!notificationsSupported) {
-        setReminders((prev) => ({ ...prev, [prayer]: true }));
-      } else {
-        Alert.alert('Notifications are off', 'Allow notifications for Rihla in Settings to get prayer reminders.');
-      }
-    } else {
-      await cancelReminder(`prayer-${prayer}`);
-      setReminders((prev) => ({ ...prev, [prayer]: false }));
+    const result = await setPrayer(prayer, value);
+    if (result === 'denied') {
+      Alert.alert('Notifications are off', 'Allow notifications for Rihla in Settings to get prayer reminders.');
+    } else if (result === 'no-times') {
+      Alert.alert('Location needed', "Rihla needs your location to work out today's prayer times before it can remind you.");
     }
     setReminderBusy(null);
   };
@@ -222,14 +209,8 @@ export default function ProgressScreen() {
   const redeemInvite = () => {
     const code = redeemCode.trim().toUpperCase();
     if (!code) return;
-    setConnecting(true);
-    setTimeout(() => {
-      setConnecting(false);
-      setRedeemCode('');
-      const name = `Friend (${code.replace('RIHLA-', '')})`;
-      addCircleMember(name);
-      Alert.alert("You're connected", `${name} has been added to your circle.`);
-    }, 700);
+    Alert.alert('Invite codes are coming soon', 'Linking with friends will switch on once accounts sync online. You can still add people by name below.');
+    setConnecting(false);
   };
 
   return (
@@ -248,13 +229,15 @@ export default function ProgressScreen() {
           <View>
             <Text style={styles.heroLabel}>WEEKLY SCORE</Text>
             <Text style={styles.score}>
-              68<Text style={styles.scoreSmall}>%</Text>
+              {week.score}<Text style={styles.scoreSmall}>%</Text>
             </Text>
-            <Text style={styles.heroCaption}>You are building consistency.</Text>
+            <Text style={styles.heroCaption}>{scoreCaption(week.score)}</Text>
           </View>
           <View style={styles.ring}>
-            <Text style={styles.ringText}>+12%</Text>
-            <Text style={styles.ringSub}>vs last week</Text>
+            <Text style={styles.ringText}>
+              {week.delta === null ? 'New' : `${week.delta >= 0 ? '+' : ''}${week.delta}%`}
+            </Text>
+            <Text style={styles.ringSub}>{week.delta === null ? 'first week' : 'vs last week'}</Text>
           </View>
         </LinearGradient>
 
@@ -264,12 +247,16 @@ export default function ProgressScreen() {
             <Text style={[styles.tag, { color: colors.accent, backgroundColor: colors.accentTint }]}>7 days</Text>
           </View>
           <View style={styles.graph}>
-            {[34, 54, 40, 68, 52, 78, 63].map((v, i) => (
+            {week.counts.map((count, i) => (
               <View key={i} style={styles.graphBarWrap}>
                 <View
                   style={[
                     styles.graphBar,
-                    { height: v, backgroundColor: i === 6 ? colors.accent : colors.background, borderColor: i === 6 ? colors.accent : colors.border },
+                    {
+                      height: 8 + (count / prayerNames.length) * 70,
+                      backgroundColor: i === week.todayIndex ? colors.accent : colors.background,
+                      borderColor: i === week.todayIndex ? colors.accent : colors.border,
+                    },
                   ]}
                 />
                 <Text style={[styles.day, { color: colors.textTertiary }]}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}</Text>
@@ -389,7 +376,7 @@ export default function ProgressScreen() {
           >
             <Text style={[styles.reminderName, { color: colors.textPrimary }]}>{prayer}</Text>
             <Switch
-              value={reminders[prayer]}
+              value={reminderSettings.prayers[prayer]}
               disabled={reminderBusy === prayer}
               onValueChange={(value) => toggleReminder(prayer, value)}
               trackColor={{ true: colors.accent, false: colors.border }}

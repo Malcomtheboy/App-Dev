@@ -8,9 +8,9 @@ function today() {
   return new Date();
 }
 
-// Call this once per goal-completion tap. Records today as an "active" day
-// (for the streak) and bumps the lifetime completion count (for the level).
-export async function recordCompletion(): Promise<void> {
+// Marks today as an "active" day for the streak, without touching the level.
+// For lighter engagement like reading a verse or learning a letter.
+export async function recordActivity(): Promise<void> {
   try {
     const raw = await AsyncStorage.getItem(DATES_KEY);
     const dates: string[] = raw ? JSON.parse(raw) : [];
@@ -19,12 +19,33 @@ export async function recordCompletion(): Promise<void> {
       dates.push(todayKey);
       await AsyncStorage.setItem(DATES_KEY, JSON.stringify(dates));
     }
+  } catch {
+    // Best-effort — worst case today doesn't count toward the streak.
+  }
+}
 
+// Call this once per finished action (a goal tap, a prayer checked off, a dua
+// done). Records today as active and bumps the lifetime count behind the level.
+export async function recordCompletion(): Promise<void> {
+  await recordActivity();
+  try {
     const rawCount = await AsyncStorage.getItem(COMPLETIONS_KEY);
     const count = rawCount ? Number(rawCount) : 0;
     await AsyncStorage.setItem(COMPLETIONS_KEY, String(count + 1));
   } catch {
-    // Best-effort — worst case this one action doesn't count toward stats.
+    // Best-effort — worst case this one action doesn't count toward the level.
+  }
+}
+
+// Undoes one completion (e.g. a prayer un-checked by mistake). The active day
+// stays, since other activity may have happened on it.
+export async function undoCompletion(): Promise<void> {
+  try {
+    const rawCount = await AsyncStorage.getItem(COMPLETIONS_KEY);
+    const count = rawCount ? Number(rawCount) : 0;
+    await AsyncStorage.setItem(COMPLETIONS_KEY, String(Math.max(0, count - 1)));
+  } catch {
+    // Best-effort.
   }
 }
 

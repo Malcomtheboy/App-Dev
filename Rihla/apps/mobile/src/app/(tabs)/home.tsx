@@ -3,26 +3,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Sheet } from '@/components/sheet';
+import { usePrayerTimes } from '@/hooks/use-prayer-times';
+import { useProfile } from '@/hooks/use-profile';
+import { useReminders } from '@/hooks/use-reminders';
+import { useWeekPrayerStats } from '@/hooks/use-week-prayer-stats';
 import { isDuaDoneToday, markDuaDone } from '@/services/dua-log';
 import { getTodayLog, markPrayerDone, PRAYERS, unmarkPrayerDone, type Prayer } from '@/services/prayer-log';
+import { recordCompletion, undoCompletion } from '@/services/progress-stats';
+import { formatClock, formatCountdown } from '@/services/time-format';
 import { useTheme } from '@/theme/theme-context';
-import { usePrayerTimes } from '@/hooks/use-prayer-times';
-
-const chartHeights = [20, 35, 29, 48, 39, 57, 50];
 
 function formatDayKicker(date: Date) {
   const weekday = date.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
   const month = date.toLocaleDateString('en-US', { month: 'long' }).toUpperCase();
   return `${weekday} · ${date.getDate()} ${month}`;
 }
-
-const notifications = [
-  { title: 'Maghrib in 20 minutes', time: 'Just now', icon: 'time-outline' as const },
-  { title: 'New reflection: Surah Al-Asr', time: 'Yesterday', icon: 'book-outline' as const },
-];
 
 const duaOfTheDay = {
   arabic: 'رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ',
@@ -37,8 +35,12 @@ type LastRead = { surahId: number; surahName: string; verseKey: string; ayah: nu
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const { times } = usePrayerTimes();
-  const [promoVisible, setPromoVisible] = useState(true);
+  const { times, now } = usePrayerTimes();
+  const { initial } = useProfile();
+  const week = useWeekPrayerStats();
+  const { settings: reminderSettings, setDaily } = useReminders(times);
+  const [promoDismissed, setPromoDismissed] = useState(false);
+  const promoVisible = !promoDismissed && !reminderSettings.dailyVerse;
   const [sheet, setSheet] = useState<SheetKey | null>(null);
   const closeSheet = () => setSheet(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,7 +77,9 @@ export default function HomeScreen() {
   const togglePrayer = async (prayer: Prayer) => {
     if (todayLog[prayer]) {
       await unmarkPrayerDone(prayer);
+      void undoCompletion();
     } else {
+      void recordCompletion();
       const start = prayerTimeFor[prayer];
       const idx = PRAYERS.indexOf(prayer);
       const nextStart = prayerTimeFor[PRAYERS[idx + 1]];
@@ -84,15 +88,38 @@ export default function HomeScreen() {
       const onTime = !!start && now >= start && now < end;
       await markPrayerDone(prayer, onTime);
     }
-    await loadToday();
+    await Promise.all([loadToday(), week.refresh()]);
   };
 
   const handleMarkDua = async () => {
     await markDuaDone();
+    void recordCompletion();
     setDuaDone(true);
   };
 
+  const enableDailyReminder = async () => {
+    const result = await setDaily('dailyVerse', true);
+    if (result === 'denied') {
+      Alert.alert('Notifications are off', 'Allow notifications for Rihla in Settings to get a daily reminder.');
+    } else {
+      Alert.alert('Reminder set', "We'll nudge you every morning at 07:30.");
+    }
+  };
+
   const prayersCompletedToday = PRAYERS.filter((p) => todayLog[p]).length;
+
+  const nextKey = times?.nextPrayer(now);
+  const nextTime = times && nextKey && nextKey !== 'none' ? times.timeForPrayer(nextKey) : null;
+  const notifications: { title: string; time: string; icon: IconName }[] = [];
+  if (nextTime && nextKey) {
+    notifications.push({
+      title: `${nextKey.charAt(0).toUpperCase()}${nextKey.slice(1)} in ${formatCountdown(nextTime.getTime() - now.getTime())}`,
+      time: `At ${formatClock(nextTime)}`,
+      icon: 'time-outline',
+    });
+  }
+  if (!duaDone) notifications.push({ title: "Today's dua isn't marked yet", time: 'Tap Dua to read it', icon: 'hand-left-outline' });
+  if (lastRead) notifications.push({ title: `Continue ${lastRead.surahName}`, time: `Ayah ${lastRead.ayah}`, icon: 'book-outline' });
 
   const runSearch = () => {
     const query = searchQuery.trim();
@@ -113,7 +140,7 @@ export default function HomeScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={[styles.avatar, { backgroundColor: colors.accentTint, borderColor: colors.accent }]}>
-            <Text style={[styles.avatarText, { color: colors.accent }]}>A</Text>
+            <Text style={[styles.avatarText, { color: colors.accent }]}>{initial}</Text>
           </View>
           <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="search" size={16} color={colors.textTertiary} />
@@ -177,8 +204,14 @@ export default function HomeScreen() {
         </LinearGradient>
 
         {promoVisible && (
-          <View style={[styles.promo, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
-            <TouchableOpacity style={styles.promoClose} onPress={() => setPromoVisible(false)}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={enableDailyReminder}
+            style={[styles.promo, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}
+            accessibilityRole="button"
+            accessibilityLabel="Set a daily reminder"
+          >
+            <TouchableOpacity style={styles.promoClose} onPress={() => setPromoDismissed(true)} accessibilityLabel="Dismiss">
               <Ionicons name="close" size={15} color={colors.textTertiary} />
             </TouchableOpacity>
             <View style={[styles.promoIcon, { backgroundColor: colors.accentTint }]}>
@@ -187,10 +220,10 @@ export default function HomeScreen() {
             <View style={styles.flex}>
               <Text style={[styles.promoTitle, { color: colors.textPrimary }]}>Your Quran streak, protected</Text>
               <Text style={[styles.promoText, { color: colors.textSecondary }]} numberOfLines={1}>
-                Set a daily reminder so you never miss a page.
+                Tap to set a daily reminder so you never miss a page.
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
 
         <View style={styles.quickRow}>
@@ -226,16 +259,30 @@ export default function HomeScreen() {
         </View>
         <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
           <View>
-            <Text style={[styles.chartValue, { color: colors.textPrimary }]}>82%</Text>
+            <Text style={[styles.chartValue, { color: colors.textPrimary }]}>{week.score}%</Text>
             <Text style={[styles.chartCaption, { color: colors.textSecondary }]}>Prayer consistency</Text>
             <View style={styles.chartDelta}>
-              <Ionicons name="trending-up" size={12} color={colors.positive} />
-              <Text style={[styles.chartDeltaText, { color: colors.positive }]}>+6% vs last week</Text>
+              <Ionicons
+                name={week.delta === null ? 'sparkles-outline' : week.delta >= 0 ? 'trending-up' : 'trending-down'}
+                size={12}
+                color={week.delta === null ? colors.textTertiary : week.delta >= 0 ? colors.positive : colors.negative}
+              />
+              <Text
+                style={[
+                  styles.chartDeltaText,
+                  { color: week.delta === null ? colors.textTertiary : week.delta >= 0 ? colors.positive : colors.negative },
+                ]}
+              >
+                {week.delta === null ? 'First week tracked' : `${week.delta >= 0 ? '+' : ''}${week.delta}% vs last week`}
+              </Text>
             </View>
           </View>
           <View style={styles.chart}>
-            {chartHeights.map((height, i) => (
-              <View key={i} style={[styles.bar, { height, backgroundColor: i === 6 ? colors.accent : colors.border }]} />
+            {week.counts.map((count, i) => (
+              <View
+                key={i}
+                style={[styles.bar, { height: 8 + (count / PRAYERS.length) * 50, backgroundColor: i === week.todayIndex ? colors.accent : colors.border }]}
+              />
             ))}
           </View>
         </View>
@@ -274,6 +321,11 @@ export default function HomeScreen() {
       </ScrollView>
 
       <Sheet visible={sheet === 'notifications'} onClose={closeSheet} title="Notifications">
+        {notifications.length === 0 && (
+          <Text style={[styles.lessonSub, { color: colors.textSecondary, paddingVertical: 12 }]}>
+            You&apos;re all caught up.
+          </Text>
+        )}
         {notifications.map((item, index) => (
           <View
             key={item.title}
