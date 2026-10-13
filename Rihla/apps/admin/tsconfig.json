@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@mobile-data/*": ["../mobile/src/data/*"]
     }
   },
   "include": [

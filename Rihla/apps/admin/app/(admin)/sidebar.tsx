@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { useAdminAuth } from "@/lib/admin-auth";
 
 const NAV_ITEMS = [
@@ -13,11 +14,10 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user, signOut } = useAdminAuth();
+  const [open, setOpen] = useState(false);
 
-  return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="px-2 py-2 text-lg font-semibold">Rihla Admin</div>
-
+  const nav = (
+    <>
       <nav className="mt-4 flex flex-1 flex-col gap-1">
         {NAV_ITEMS.map((item) => {
           const active = pathname.startsWith(item.href);
@@ -25,10 +25,9 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setOpen(false)}
               className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                active
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
+                active ? "bg-accent text-accent-on" : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
               }`}
             >
               {item.label}
@@ -46,6 +45,38 @@ export function Sidebar() {
           Sign out
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      <header className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 md:hidden dark:border-zinc-800 dark:bg-zinc-950">
+        <Brand />
+        <button
+          onClick={() => setOpen((value) => !value)}
+          aria-label="Toggle menu"
+          aria-expanded={open}
+          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium dark:border-zinc-700"
+        >
+          {open ? "Close" : "Menu"}
+        </button>
+      </header>
+      {open && <div className="flex flex-col border-b border-zinc-200 bg-white px-4 pb-4 md:hidden dark:border-zinc-800 dark:bg-zinc-950">{nav}</div>}
+
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-zinc-200 bg-white p-4 md:flex dark:border-zinc-800 dark:bg-zinc-950">
+        <Brand />
+        {nav}
+      </aside>
+    </>
+  );
+}
+
+function Brand() {
+  return (
+    <div className="flex items-center gap-2 px-1 py-1">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/rihla-logo.png" alt="Rihla" className="h-9 w-auto" />
+      <span className="text-sm font-semibold tracking-tight text-zinc-500">Admin</span>
+    </div>
   );
 }

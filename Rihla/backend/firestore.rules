@@ -1,21 +1,36 @@
 rules_version = '2';
 
-// Proposed rules for the "admins" collection used by apps/admin to gate the
-// admin portal. Not deployed yet — review against whatever rules already
-// exist on the Firebase console (rihla-31cd5) before merging, since this
-// file doesn't know about collections Yasir has already written rules for.
+// PROPOSED rules — not deployed. Review against whatever is already live on
+// the Firebase console (project rihla-31cd5) before replacing anything, since
+// this file only knows about the two collections below.
 //
-// admins/{uid}: one doc per admin, doc ID = their Firebase Auth uid.
-// - Any signed-in user can read their OWN doc (so the client can check
-//   "am I an admin" after login).
-// - No client can create/update/delete these docs — admins are granted by
-//   adding a doc by hand via the Firebase console or the Admin SDK, never
-//   through the app itself.
+// admins/{uid}
+//   One doc per admin, doc ID = their Firebase Auth uid. A signed-in user may
+//   read only their OWN doc (that's how the admin portal checks "am I an
+//   admin"). Nobody can write through the client: add admins by hand in the
+//   Firebase console or with the Admin SDK.
+//
+// users/{uid}
+//   Written by the mobile app at sign-up (displayName, email, createdAt).
+//   Each person can read and edit only their own doc; admins can read all of
+//   them (the admin portal's Users page and account count).
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
     }
   }
 }
