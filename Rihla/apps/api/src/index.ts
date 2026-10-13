@@ -19,6 +19,42 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+// In-memory operational stats for the admin portal's Overview page. Reset on
+// restart — this is a live health view, not a record, and holds no user data.
+const startedAt = Date.now();
+const traffic = { total: 0, clientErrors: 0, serverErrors: 0, byGroup: {} as Record<string, number> };
+
+type UpstreamName = "quran" | "hadith" | "ai";
+const upstreams: Record<UpstreamName, { ok: number; failed: number; lastOk: number | null; lastError: number | null }> = {
+  quran: { ok: 0, failed: 0, lastOk: null, lastError: null },
+  hadith: { ok: 0, failed: 0, lastOk: null, lastError: null },
+  ai: { ok: 0, failed: 0, lastOk: null, lastError: null },
+};
+
+function markUpstream(name: UpstreamName, ok: boolean) {
+  const stats = upstreams[name];
+  if (ok) {
+    stats.ok += 1;
+    stats.lastOk = Date.now();
+  } else {
+    stats.failed += 1;
+    stats.lastError = Date.now();
+  }
+}
+
+app.use("/api", (req, res, next) => {
+  if (req.path !== "/health") {
+    const group = req.path.split("/")[1] || "other";
+    res.on("finish", () => {
+      traffic.total += 1;
+      traffic.byGroup[group] = (traffic.byGroup[group] ?? 0) + 1;
+      if (res.statusCode >= 500) traffic.serverErrors += 1;
+      else if (res.statusCode >= 400) traffic.clientErrors += 1;
+    });
+  }
+  next();
+});
+
 // Generous enough for normal app usage (a screen can fire several of these on load),
 // but stops one client from hammering the upstream Quran API through our credentials.
 app.use(
@@ -62,8 +98,10 @@ app.get("/api/quran/chapters", async (_req, res) => {
 
     console.log("CHAPTER COUNT:", chapters.length);
 
+    markUpstream("quran", true);
     res.json(chapters);
   } catch (error) {
+    markUpstream("quran", false);
     console.error("Quran API error:", error);
 
     res.status(500).json({
@@ -88,8 +126,10 @@ app.get("/api/quran/chapters/:id/verses", async (req, res) => {
       perPage: 300,
     });
 
+    markUpstream("quran", true);
     res.json(verses);
   } catch (error) {
+    markUpstream("quran", false);
     console.error("Quran verses error:", error);
 
     res.status(500).json({
@@ -116,8 +156,10 @@ app.get("/api/quran/verses/:verseKey/audio", async (req, res) => {
       reciterId
     );
 
+    markUpstream("quran", true);
     res.json(audio);
   } catch (error) {
+    markUpstream("quran", false);
     console.error("Quran audio error:", error);
 
     res.status(500).json({
@@ -128,8 +170,10 @@ app.get("/api/quran/verses/:verseKey/audio", async (req, res) => {
 app.get("/api/quran/recitations", async (_req, res) => {
   try {
     const recitations = await quran.content.v4.resources.recitations.list();
+    markUpstream("quran", true);
     res.json(recitations);
   } catch (error) {
+    markUpstream("quran", false);
     console.error("Recitations error:", error);
     res.status(500).json({ error: "Kunne ikke hente reciters" });
   }
@@ -168,16 +212,22 @@ async function fetchHadithEdition(collection: HadithCollectionKey): Promise<Hadi
   const cached = hadithEditionCache.get(collection);
   if (cached) return cached;
 
-  const response = await fetch(
-    `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/eng-${collection}.min.json`
-  );
-  if (!response.ok) {
-    throw new Error(`Upstream hadith fetch failed: ${response.status}`);
-  }
+  try {
+    const response = await fetch(
+      `https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1/editions/eng-${collection}.min.json`
+    );
+    if (!response.ok) {
+      throw new Error(`Upstream hadith fetch failed: ${response.status}`);
+    }
 
-  const data = (await response.json()) as HadithEdition;
-  hadithEditionCache.set(collection, data);
-  return data;
+    const data = (await response.json()) as HadithEdition;
+    hadithEditionCache.set(collection, data);
+    markUpstream("hadith", true);
+    return data;
+  } catch (error) {
+    markUpstream("hadith", false);
+    throw error;
+  }
 }
 
 app.get("/api/hadith/collections", (_req, res) => {
@@ -258,6 +308,22 @@ app.get("/api/ai/status", (_req, res) => {
   res.json({ configured: isGeminiConfigured() });
 });
 
+// Operational snapshot for the admin Overview page. Only counters and
+// timestamps — no request contents, no user identifiers.
+app.get("/api/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    startedAt,
+    uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+    traffic,
+    services: {
+      quran: { configured: !!process.env.QF_CLIENT_ID && !!process.env.QF_CLIENT_SECRET, ...upstreams.quran },
+      hadith: { configured: true, cachedCollections: [...hadithEditionCache.keys()], ...upstreams.hadith },
+      ai: { configured: isGeminiConfigured(), ...upstreams.ai },
+    },
+  });
+});
+
 app.post("/api/ai/ask", async (req, res) => {
   if (!isGeminiConfigured()) {
     return res.status(503).json({ error: "AI isn't configured on this server yet" });
@@ -283,8 +349,10 @@ app.post("/api/ai/ask", async (req, res) => {
 
   try {
     const reply = await askGemini(message.trim(), cleanHistory);
+    markUpstream("ai", true);
     res.json({ reply });
   } catch (error) {
+    markUpstream("ai", false);
     console.error("Gemini error:", error);
     res.status(502).json({ error: "Could not get a response from the AI right now" });
   }
