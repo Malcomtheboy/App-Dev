@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { auth } from './firebase';
+import type { ExperienceLevel } from './experience-level';
 
 // Same host-detection trick as quranApi.ts and hadithApi.ts — see there for why.
 function resolveApiUrl(): string {
@@ -21,7 +22,14 @@ const API_URL = resolveApiUrl();
 
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
-export async function askAi(message: string, history: ChatTurn[] = []): Promise<string> {
+// A reference the server has checked really exists, so it is safe to link to.
+export type AiSource =
+  | { kind: 'quran'; label: string; surahId: number; ayah: number }
+  | { kind: 'hadith'; label: string; collection: string; section: number; excerpt: string };
+
+export type AiAnswer = { reply: string; sources: AiSource[] };
+
+export async function askAi(message: string, history: ChatTurn[] = [], level?: ExperienceLevel): Promise<AiAnswer> {
   const user = auth.currentUser;
   if (!user) throw new Error('Sign in to use the AI.');
   if (!__DEV__ && !API_URL.startsWith('https://')) {
@@ -36,7 +44,7 @@ export async function askAi(message: string, history: ChatTurn[] = []): Promise<
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, level }),
   });
 
   const data = await response.json().catch(() => null);
@@ -49,5 +57,5 @@ export async function askAi(message: string, history: ChatTurn[] = []): Promise<
     throw new Error('AI response was empty');
   }
 
-  return data.reply;
+  return { reply: data.reply, sources: Array.isArray(data.sources) ? data.sources : [] };
 }

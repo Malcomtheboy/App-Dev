@@ -2,6 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { addDays, daysElapsedThisWeek, startOfWeek } from '@/services/date-key';
 import { getDailyPrayerCounts, PRAYERS } from '@/services/prayer-log';
+import { weekRate } from '@/services/stats-math';
 
 export type WeekPrayerStats = {
   counts: number[]; // prayers checked off, Monday..Sunday
@@ -13,9 +14,7 @@ export type WeekPrayerStats = {
 const empty: WeekPrayerStats = { counts: [0, 0, 0, 0, 0, 0, 0], todayIndex: 0, score: 0, delta: null };
 
 function rate(counts: number[], days: number) {
-  if (days <= 0) return 0;
-  const done = counts.slice(0, days).reduce((sum, count) => sum + count, 0);
-  return Math.round((done / (days * PRAYERS.length)) * 100);
+  return weekRate(counts, days, PRAYERS.length);
 }
 
 // Shared by Home and Progress so their weekly charts always agree.

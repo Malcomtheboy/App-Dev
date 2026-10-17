@@ -6,7 +6,8 @@ import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { createServerClient } from "@quranjs/api/server";
 import type { ChapterId } from "@quranjs/api";
-import { askGemini, isGeminiConfigured, type ChatTurn } from "./gemini.js";
+import { askGemini, isExperienceLevel, isGeminiConfigured, type ChatTurn } from "./gemini.js";
+import { quranLabel, quranRefIsReal, splitSources, type SourceRef } from "./sources.js";
 import { createAiSecurity } from "./ai-security.js";
 
 dns.setDefaultResultOrder("ipv4first");
@@ -290,6 +291,53 @@ app.get("/api/hadith/:collection/sections/:sectionNumber", async (req, res) => {
   }
 });
 
+type VerifiedSource =
+  | { kind: "quran"; label: string; surahId: number; ayah: number }
+  | { kind: "hadith"; label: string; collection: string; section: number; excerpt: string };
+
+let chapterInfo: Map<number, { name: string; versesCount: number }> | null = null;
+
+async function getChapterInfo() {
+  if (chapterInfo) return chapterInfo;
+  const chapters = await quran.content.v4.chapters.list();
+  chapterInfo = new Map(
+    chapters.map((chapter) => [chapter.id, { name: chapter.nameSimple, versesCount: chapter.versesCount }]),
+  );
+  return chapterInfo;
+}
+
+// Keeps only references that really exist. Anything the model got wrong (a
+// surah that isn't there, an ayah past the end, a hadith number that doesn't
+// exist) is silently dropped instead of being shown as a source.
+async function verifySources(refs: SourceRef[]): Promise<VerifiedSource[]> {
+  const verified: VerifiedSource[] = [];
+  for (const ref of refs) {
+    try {
+      if (ref.kind === "quran") {
+        const info = (await getChapterInfo()).get(ref.surah);
+        if (info && quranRefIsReal(ref, info.versesCount)) {
+          verified.push({ kind: "quran", label: quranLabel(info.name, ref), surahId: ref.surah, ayah: ref.from });
+        }
+      } else {
+        const edition = await fetchHadithEdition(ref.collection);
+        const hadith = edition.hadiths.find((entry) => entry.hadithnumber === ref.number);
+        if (hadith) {
+          verified.push({
+            kind: "hadith",
+            label: `${HADITH_COLLECTIONS[ref.collection]} ${ref.number}`,
+            collection: ref.collection,
+            section: hadith.reference.book,
+            excerpt: (hadith.text ?? "").slice(0, 240),
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Source check failed:", error);
+    }
+  }
+  return verified;
+}
+
 app.get("/api/ai/status", (_req, res) => {
   res.json({ configured: isGeminiConfigured() });
 });
@@ -315,7 +363,7 @@ app.post("/api/ai/ask", ...createAiSecurity(), async (req, res) => {
     return res.status(503).json({ error: "AI isn't configured on this server yet" });
   }
 
-  const { message, history } = req.body ?? {};
+  const { message, history, level } = req.body ?? {};
 
   if (typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ error: "Missing message" });
@@ -334,9 +382,10 @@ app.post("/api/ai/ask", ...createAiSecurity(), async (req, res) => {
     : [];
 
   try {
-    const reply = await askGemini(message.trim(), cleanHistory);
+    const raw = await askGemini(message.trim(), cleanHistory, isExperienceLevel(level) ? level : "beginner");
     markUpstream("ai", true);
-    res.json({ reply });
+    const { text, refs } = splitSources(raw);
+    res.json({ reply: text || raw.trim(), sources: await verifySources(refs) });
   } catch (error) {
     markUpstream("ai", false);
     console.error("Gemini error:", error);

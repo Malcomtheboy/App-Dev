@@ -18,13 +18,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { starterPrompts } from '@/services/ask-starters';
-import { askAi } from '@/services/aiApi';
+import { useRouter } from 'expo-router';
+import { useExperienceLevel } from '@/hooks/use-experience-level';
+import { useProfile } from '@/hooks/use-profile';
+import { startersFor } from '@/services/ask-starters';
+import { askAi, type AiSource } from '@/services/aiApi';
 import type { ThemeColors } from '@/theme/colors';
 import { useTheme } from '@/theme/theme-context';
 
 type MessageRole = 'user' | 'assistant';
-type ChatMessage = { id: string; role: MessageRole; text: string; createdAt: number };
+type ChatMessage = { id: string; role: MessageRole; text: string; createdAt: number; sources?: AiSource[] };
 type Conversation = { id: string; title: string; messages: ChatMessage[]; updatedAt: number };
 
 const STORAGE_KEY = 'rihla:conversations';
@@ -51,6 +54,9 @@ function formatMeta(updatedAt: number) {
 
 export default function AskScreen() {
   const { colors } = useTheme();
+  const router = useRouter();
+  const { level } = useExperienceLevel();
+  const { initial, displayName } = useProfile();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [hydrated, setHydrated] = useState(false);
@@ -170,20 +176,34 @@ export default function AskScreen() {
     setSending(true);
 
     let replyText: string;
+    let sources: AiSource[] = [];
     try {
-      replyText = await askAi(trimmed, history);
+      const answer = await askAi(trimmed, history, level);
+      replyText = answer.reply;
+      sources = answer.sources;
     } catch {
       replyText = "Sorry, I couldn't reach the AI just now. Check your connection and try again in a moment.";
     }
 
     const repliedAt = now();
-    const assistantMessage: ChatMessage = { id: newId(), role: 'assistant', text: replyText, createdAt: repliedAt };
+    const assistantMessage: ChatMessage = {
+      id: newId(),
+      role: 'assistant',
+      text: replyText,
+      createdAt: repliedAt,
+      ...(sources.length > 0 && { sources }),
+    };
     setConversations((prev) =>
       prev.map((c) =>
         c.id === targetId ? { ...c, messages: [...c.messages, assistantMessage], updatedAt: repliedAt } : c,
       ),
     );
     setSending(false);
+  };
+
+  const openSource = (source: AiSource) => {
+    if (source.kind === 'quran') router.push(`/quran/${source.surahId}?ayah=${source.ayah}` as any);
+    else router.push(`/hadith/${source.collection}/${source.section}` as any);
   };
 
   return (
@@ -299,7 +319,7 @@ export default function AskScreen() {
                   </View>
                   <Text style={[styles.starterTitle, { color: colors.textPrimary }]}>Ask about prayer, Quran or daily practice</Text>
                   <View style={styles.starterList}>
-                    {starterPrompts.map((prompt) => (
+                    {startersFor(level).map((prompt) => (
                       <TouchableOpacity
                         key={prompt.title}
                         style={[styles.starterChip, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -314,7 +334,7 @@ export default function AskScreen() {
               )}
 
               {activeConversation?.messages.map((message) => (
-                <MessageBubble key={message.id} message={message} colors={colors} />
+                <MessageBubble key={message.id} message={message} colors={colors} onOpenSource={openSource} />
               ))}
 
               {sending && (
@@ -382,9 +402,9 @@ export default function AskScreen() {
 
               <View style={[styles.drawerFooter, { borderTopColor: colors.border }]}>
                 <View style={[styles.drawerAvatar, { backgroundColor: colors.accentTint, borderColor: colors.accent }]}>
-                  <Text style={[styles.drawerAvatarText, { color: colors.accent }]}>A</Text>
+                  <Text style={[styles.drawerAvatarText, { color: colors.accent }]}>{initial}</Text>
                 </View>
-                <Text style={[styles.drawerFooterText, { color: colors.textPrimary }]}>Your account</Text>
+                <Text style={[styles.drawerFooterText, { color: colors.textPrimary }]} numberOfLines={1}>{displayName}</Text>
               </View>
             </SafeAreaView>
           </Animated.View>
@@ -394,7 +414,15 @@ export default function AskScreen() {
   );
 }
 
-function MessageBubble({ message, colors }: { message: ChatMessage; colors: ThemeColors }) {
+function MessageBubble({
+  message,
+  colors,
+  onOpenSource,
+}: {
+  message: ChatMessage;
+  colors: ThemeColors;
+  onOpenSource: (source: AiSource) => void;
+}) {
   const isUser = message.role === 'user';
   return (
     <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
@@ -412,6 +440,29 @@ function MessageBubble({ message, colors }: { message: ChatMessage; colors: Them
         ]}
       >
         <Text style={[styles.bubbleText, { color: isUser ? colors.accentOn : colors.textPrimary }]}>{message.text}</Text>
+        {!isUser && !!message.sources?.length && (
+          <View style={[styles.sources, { borderTopColor: colors.border }]}>
+            <Text style={[styles.sourcesLabel, { color: colors.textTertiary }]}>SOURCES</Text>
+            {message.sources.map((source) => (
+              <TouchableOpacity
+                key={`${source.kind}-${source.label}`}
+                style={[styles.sourceChip, { backgroundColor: colors.accentTint, borderColor: colors.accent }]}
+                onPress={() => onOpenSource(source)}
+                accessibilityRole="link"
+                accessibilityLabel={`Open ${source.label}`}
+              >
+                <Ionicons name={source.kind === 'quran' ? 'book-outline' : 'library-outline'} size={14} color={colors.accent} />
+                <View style={styles.flex}>
+                  <Text style={[styles.sourceTitle, { color: colors.accent }]} numberOfLines={1}>{source.label}</Text>
+                  {source.kind === 'hadith' && !!source.excerpt && (
+                    <Text style={[styles.sourceExcerpt, { color: colors.textSecondary }]} numberOfLines={2}>{source.excerpt}</Text>
+                  )}
+                </View>
+                <Ionicons name="chevron-forward" size={14} color={colors.accent} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -528,6 +579,11 @@ const styles = StyleSheet.create({
   bubbleUser: { borderTopRightRadius: 6 },
   bubbleAssistant: { borderTopLeftRadius: 6, borderWidth: 1 },
   bubbleText: { fontSize: 14, lineHeight: 20, flexShrink: 1 },
+  sources: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, gap: 7 },
+  sourcesLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  sourceChip: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+  sourceTitle: { fontSize: 12.5, fontWeight: '700' },
+  sourceExcerpt: { fontSize: 11, lineHeight: 15, marginTop: 2 },
   overlay: { backgroundColor: 'rgba(0,0,0,0.4)' },
   drawer: { position: 'absolute', top: 0, bottom: 0, left: 0, width: DRAWER_WIDTH, borderRightWidth: 1, padding: 16 },
   drawerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

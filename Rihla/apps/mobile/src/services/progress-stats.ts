@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dateKey } from './date-key';
+import { computeLevel, computeStreak } from './stats-math';
 
 const DATES_KEY = 'rihla:activityDates';
 const COMPLETIONS_KEY = 'rihla:totalCompletions';
@@ -51,9 +52,6 @@ export async function undoCompletion(): Promise<void> {
 
 export type ProgressStats = { streak: number; level: number; completions: number };
 
-// A day streak counts consecutive active days ending today. If today has no
-// activity yet, it checks from yesterday instead, so the streak doesn't look
-// broken before you've had a chance to do anything today.
 export async function getProgressStats(): Promise<ProgressStats> {
   try {
     const [rawDates, rawCount] = await Promise.all([
@@ -62,19 +60,7 @@ export async function getProgressStats(): Promise<ProgressStats> {
     ]);
     const dates = new Set<string>(rawDates ? JSON.parse(rawDates) : []);
     const completions = rawCount ? Number(rawCount) : 0;
-
-    let streak = 0;
-    const cursor = today();
-    if (!dates.has(dateKey(cursor))) {
-      cursor.setDate(cursor.getDate() - 1);
-    }
-    while (dates.has(dateKey(cursor))) {
-      streak += 1;
-      cursor.setDate(cursor.getDate() - 1);
-    }
-
-    const level = Math.floor(completions / 5) + 1;
-    return { streak, level, completions };
+    return { streak: computeStreak(dates, today()), level: computeLevel(completions), completions };
   } catch {
     return { streak: 0, level: 1, completions: 0 };
   }

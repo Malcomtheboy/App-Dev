@@ -13,7 +13,10 @@ public signing certificates. The server needs outbound HTTPS access to Google.
 It validates the signature, issuer, audience and expiration before calling
 Gemini. Missing or invalid tokens return `401`, verification/configuration
 failures return `503`, and rate limits return `429` with `Retry-After`.
-Successful responses remain `{ "reply": "..." }`; errors remain `{ "error": "..." }`.
+Requests may include `level` (`new`, `beginner` or `advanced`) alongside
+`message` and `history`. Responses contain `{ "reply": "...", "sources": [...] }`;
+the server checks source references before returning them. Errors remain
+`{ "error": "..." }`.
 
 Limits are 5 requests per Firebase UID per minute and 8 requests across all users
 per minute, in addition to the existing general API limit. Counters are held in
@@ -28,5 +31,7 @@ in the mobile app. Release builds reject HTTP for AI requests. Basic token
 verification does not check account disablement or token revocation;
 already-issued tokens can remain valid until they expire.
 
-Run `npm test` and `npx tsc --noEmit` in `apps/api` for local checks. Tests use
-isolated HTTP handlers and test tokens; they do not call the live Gemini service.
+Run `npm test` and `npx tsc --noEmit` in `apps/api` for local checks. The test
+command runs both the source-parser tests in `src/` and the security/integration tests in
+`tests/`. Tests use isolated HTTP handlers, test tokens and mocked upstream
+responses; they do not call the live Gemini service.
