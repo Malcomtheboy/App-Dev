@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { Logo } from "@/components/logo";
 import { useAdminAuth } from "@/lib/admin-auth";
 import { authErrorMessage } from "@/lib/admin-session";
 
@@ -92,8 +93,7 @@ export function Sidebar() {
 function Brand() {
   return (
     <div className="flex items-center gap-2 px-1 py-1">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/rihla-logo.png" alt="Rihla" className="h-9 w-auto" />
+      <Logo className="h-9 w-auto" />
       <span className="text-sm font-semibold tracking-tight text-zinc-500">Admin</span>
     </div>
   );

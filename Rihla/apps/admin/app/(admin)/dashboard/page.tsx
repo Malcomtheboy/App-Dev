@@ -49,7 +49,13 @@ export default function DashboardPage() {
               stats={health.services.hadith}
               now={now}
             />
-            <ServiceCard name="Ask (AI)" detail="Gemini" stats={health.services.ai} now={now} />
+            <ServiceCard
+              name="Ask (AI)"
+              detail="Gemini"
+              stats={health.services.ai}
+              now={now}
+              extra={{ label: "Answered from the Hadith library", value: health.services.ai.libraryAnswers ?? 0 }}
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -64,7 +70,19 @@ export default function DashboardPage() {
   );
 }
 
-function ServiceCard({ name, detail, stats, now }: { name: string; detail: string; stats: UpstreamStats; now: number }) {
+function ServiceCard({
+  name,
+  detail,
+  stats,
+  now,
+  extra,
+}: {
+  name: string;
+  detail: string;
+  stats: UpstreamStats;
+  now: number;
+  extra?: { label: string; value: number };
+}) {
   const total = stats.ok + stats.failed;
   const failing = stats.lastError !== null && (stats.lastOk === null || stats.lastError > stats.lastOk);
   return (
@@ -83,6 +101,12 @@ function ServiceCard({ name, detail, stats, now }: { name: string; detail: strin
         <dd className="text-right">{timeAgo(stats.lastOk, now)}</dd>
         <dt className="text-zinc-500">Last failure</dt>
         <dd className="text-right">{timeAgo(stats.lastError, now)}</dd>
+        {extra && (
+          <>
+            <dt className="text-zinc-500">{extra.label}</dt>
+            <dd className="text-right tabular-nums">{extra.value}</dd>
+          </>
+        )}
       </dl>
     </Card>
   );

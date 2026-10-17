@@ -26,7 +26,7 @@ export type Health = {
   services: {
     quran: UpstreamStats;
     hadith: UpstreamStats & { cachedCollections: string[] };
-    ai: UpstreamStats;
+    ai: UpstreamStats & { libraryAnswers?: number };
   };
 };
 

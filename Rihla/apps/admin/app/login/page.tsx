@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Logo } from "@/components/logo";
 import { useAdminAuth } from "@/lib/admin-auth";
 import { authErrorMessage } from "@/lib/admin-session";
 
@@ -83,8 +84,7 @@ export default function LoginPage() {
         aria-busy={submitting || loading}
         className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/rihla-logo.png" alt="Rihla" className="mx-auto h-24 w-auto" />
+        <Logo className="mx-auto h-24 w-auto" />
         <h1 className="mt-4 text-center text-xl font-semibold">Admin portal</h1>
         <p className="mt-1 text-center text-sm text-zinc-500">Sign in with an authorized admin account.</p>
 
