@@ -7,12 +7,15 @@ import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Sheet } from '@/components/sheet';
 import { usePrayerTimes } from '@/hooks/use-prayer-times';
+import { useExperienceLevel } from '@/hooks/use-experience-level';
 import { useProfile } from '@/hooks/use-profile';
 import { useReminders } from '@/hooks/use-reminders';
 import { useWeekPrayerStats } from '@/hooks/use-week-prayer-stats';
+import { arabicLevels, getArabicProgress } from '@/services/arabic-progress';
 import { isDuaDoneToday, markDuaDone } from '@/services/dua-log';
 import { getTodayLog, markPrayerDone, PRAYERS, unmarkPrayerDone, type Prayer } from '@/services/prayer-log';
 import { recordCompletion, undoCompletion } from '@/services/progress-stats';
+import { buildSuggestion, nextArabicStep } from '@/services/suggestions';
 import { formatClock, formatCountdown } from '@/services/time-format';
 import { useTheme } from '@/theme/theme-context';
 
@@ -37,6 +40,8 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const { times, now } = usePrayerTimes();
   const { initial } = useProfile();
+  const { level } = useExperienceLevel();
+  const [arabicProgress, setArabicProgress] = useState<Record<string, number>>({});
   const week = useWeekPrayerStats();
   const { settings: reminderSettings, setDaily } = useReminders(times);
   const [promoDismissed, setPromoDismissed] = useState(false);
@@ -58,9 +63,10 @@ export default function HomeScreen() {
   }, []);
 
   const loadToday = useCallback(async () => {
-    const [log, dua] = await Promise.all([getTodayLog(), isDuaDoneToday()]);
+    const [log, dua, arabic] = await Promise.all([getTodayLog(), isDuaDoneToday(), getArabicProgress()]);
     setTodayLog(log);
     setDuaDone(dua);
+    setArabicProgress(arabic);
   }, []);
 
   useFocusEffect(
@@ -105,6 +111,8 @@ export default function HomeScreen() {
       Alert.alert('Reminder set', "We'll nudge you every morning at 07:30.");
     }
   };
+
+  const suggestion = buildSuggestion(level, nextArabicStep(arabicLevels, arabicProgress));
 
   const prayersCompletedToday = PRAYERS.filter((p) => todayLog[p]).length;
 
@@ -253,6 +261,23 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        <TouchableOpacity
+          style={[styles.lesson, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow, marginTop: 22 }]}
+          onPress={() => router.push(suggestion.href as any)}
+          accessibilityRole="button"
+          accessibilityLabel={suggestion.title}
+        >
+          <View style={[styles.lessonBadge, { backgroundColor: colors.accentTint, borderColor: colors.accent }]}>
+            <Ionicons name={suggestion.icon} size={20} color={colors.accent} />
+          </View>
+          <View style={styles.lessonText}>
+            <Text style={[styles.lessonOverline, { color: colors.textTertiary }]}>SUGGESTED FOR YOU</Text>
+            <Text style={[styles.lessonTitle, { color: colors.textPrimary }]}>{suggestion.title}</Text>
+            <Text style={[styles.lessonSub, { color: colors.textSecondary }]}>{suggestion.subtitle}</Text>
+          </View>
+          <Ionicons name="arrow-forward" size={18} color={colors.textTertiary} />
+        </TouchableOpacity>
 
         <View style={styles.sectionHeading}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>This week</Text>

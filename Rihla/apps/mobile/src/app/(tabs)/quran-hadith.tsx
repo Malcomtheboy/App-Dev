@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { juzStarts } from '@/data/juz-starts';
+import { useExperienceLevel } from '@/hooks/use-experience-level';
 import { getQuranChapters } from '@/services/quranApi';
 import { useTheme } from '@/theme/theme-context';
 
@@ -24,6 +25,7 @@ export default function LearnScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { q } = useLocalSearchParams<{ q?: string }>();
+  const { level } = useExperienceLevel();
 
   const [tab, setTab] = useState<'quran' | 'hadith'>('quran');
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -46,7 +48,6 @@ export default function LearnScreen() {
   useEffect(() => {
     getQuranChapters()
       .then(data => {
-        console.log('CHAPTERS MOBILE:', data?.length, data);
         setChapters(data);
       })
       .catch(e => console.error('Quran API:', e));
@@ -93,6 +94,35 @@ export default function LearnScreen() {
     setJuz(next);
     setJuzOpen(false);
   };
+
+  // New Muslims see the alphabet first; everyone else finds it after Bookmarks.
+  const arabicCard = (
+    <TouchableOpacity
+      onPress={() => router.push('/arabic' as any)}
+      style={[s.bookmark, {
+        backgroundColor: colors.surface,
+        borderColor: colors.border,
+        ...(level === 'new' && { marginTop: 0, marginBottom: 20 }),
+      }]}
+    >
+      <View style={s.bookmarkLeft}>
+        <View style={[s.bookmarkIcon, { backgroundColor: colors.accentTint }]}>
+          <Text style={[s.bookmarkArabic, { color: colors.accent }]}>ا</Text>
+        </View>
+
+        <View>
+          <Text style={[s.bookmarkTitle, { color: colors.textPrimary }]}>
+            Learn Arabic
+          </Text>
+          <Text style={[s.bookmarkSub, { color: colors.textSecondary }]}>
+            {level === 'new' ? 'Start here: the alphabet, step by step' : 'Letters, vowel marks and reading'}
+          </Text>
+        </View>
+      </View>
+
+      <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={[s.safe, { backgroundColor: colors.background }]} edges={['top']}>
@@ -143,6 +173,7 @@ export default function LearnScreen() {
           <>
             {!search && (
               <>
+                {level === 'new' && arabicCard}
                 <Text style={[s.overline, { color: colors.textTertiary }]}>CONTINUE READING</Text>
 
                 <TouchableOpacity
@@ -300,30 +331,7 @@ export default function LearnScreen() {
                   <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => router.push('/arabic' as any)}
-                  style={[s.bookmark, {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                  }]}
-                >
-                  <View style={s.bookmarkLeft}>
-                    <View style={[s.bookmarkIcon, { backgroundColor: colors.accentTint }]}>
-                      <Text style={[s.bookmarkArabic, { color: colors.accent }]}>ا</Text>
-                    </View>
-
-                    <View>
-                      <Text style={[s.bookmarkTitle, { color: colors.textPrimary }]}>
-                        Learn Arabic
-                      </Text>
-                      <Text style={[s.bookmarkSub, { color: colors.textSecondary }]}>
-                        Letters, vowel marks and reading
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-                </TouchableOpacity>
+                {level !== 'new' && arabicCard}
               </>
             )}
 

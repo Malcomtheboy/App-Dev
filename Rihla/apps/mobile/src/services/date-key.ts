@@ -27,5 +27,11 @@ export function startOfWeek(date: Date): Date {
 
 // How many days of the current week (Mon..today, inclusive) have happened so far.
 export function daysElapsedThisWeek(date: Date): number {
-  return Math.floor((date.getTime() - startOfWeek(date).getTime()) / 86_400_000) + 1;
+  // Counted on the calendar (via UTC midnights of the local Y-M-D), not by
+  // dividing milliseconds: a day is 23 or 25 hours when the clocks change, which
+  // made the last evening of such a week count as an eighth day.
+  const start = startOfWeek(date);
+  const today = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const monday = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  return Math.round((today - monday) / 86_400_000) + 1;
 }

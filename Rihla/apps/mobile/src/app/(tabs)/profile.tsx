@@ -9,6 +9,8 @@ import { signOut } from 'firebase/auth';
 import { Sheet } from '@/components/sheet';
 import { juzStarts } from '@/data/juz-starts';
 import { useConnectedCircle } from '@/hooks/use-connected-circle';
+import { useExperienceLevel } from '@/hooks/use-experience-level';
+import { levelOptions } from '@/services/experience-level';
 import { usePrayerTimes } from '@/hooks/use-prayer-times';
 import { useProfile } from '@/hooks/use-profile';
 import { useReminders, type ReminderResult } from '@/hooks/use-reminders';
@@ -19,7 +21,7 @@ import { useTheme } from '@/theme/theme-context';
 import type { ThemePreference } from '@/theme/theme-context';
 
 type IconName = keyof typeof Ionicons.glyphMap;
-type SheetKey = 'badges' | 'appearance' | 'notifications' | 'location' | 'language' | 'circles' | 'privacy' | 'help' | 'about';
+type SheetKey = 'badges' | 'appearance' | 'notifications' | 'location' | 'language' | 'level' | 'circles' | 'privacy' | 'help' | 'about';
 
 type BadgeProgress = { finishedJuz1: boolean; goalCompleted: boolean; askedSomething: boolean };
 const initialBadgeProgress: BadgeProgress = { finishedJuz1: false, goalCompleted: false, askedSomething: false };
@@ -33,6 +35,8 @@ const appearanceOptions: { key: ThemePreference; label: string; icon: IconName }
 export default function ProfileScreen() {
   const { colors, isDark, preference, setPreference } = useTheme();
   const { displayName, initial: avatarInitial, memberSince } = useProfile();
+  const { level, setLevel } = useExperienceLevel();
+  const levelTitle = levelOptions.find((option) => option.key === level)?.title ?? 'Beginner';
 
   const [sheet, setSheet] = useState<SheetKey | null>(null);
   const closeSheet = () => setSheet(null);
@@ -221,6 +225,15 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
           </TouchableOpacity>
 
+          <TouchableOpacity style={[styles.groupRow, styles.groupRowBorder, { borderBottomColor: colors.border }]} onPress={() => setSheet('level')}>
+            <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
+              <Ionicons name="school-outline" size={16} color={colors.textSecondary} />
+            </View>
+            <Text style={[styles.groupLabel, { color: colors.textPrimary }]}>Experience level</Text>
+            <Text style={[styles.groupValue, { color: colors.textSecondary }]} numberOfLines={1}>{levelTitle}</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.groupRow} onPress={() => setSheet('language')}>
             <View style={[styles.itemIcon, { backgroundColor: colors.iconCircle, borderColor: colors.iconBorder }]}>
               <Ionicons name="language-outline" size={16} color={colors.textSecondary} />
@@ -355,6 +368,28 @@ export default function ProfileScreen() {
           <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
         </TouchableOpacity>
         <Text style={[styles.footnote, { color: colors.textTertiary }]}>More languages, including Norwegian, are on the way.</Text>
+      </Sheet>
+
+      <Sheet visible={sheet === 'level'} onClose={closeSheet} title="Experience level">
+        <Text style={[styles.sheetIntro, { color: colors.textSecondary }]}>
+          Shapes what Rihla suggests, how Learn is ordered, and how the Guide words its answers.
+        </Text>
+        {levelOptions.map((option) => (
+          <TouchableOpacity
+            key={option.key}
+            style={styles.optionRow}
+            onPress={() => {
+              setLevel(option.key);
+              closeSheet();
+            }}
+          >
+            <View style={styles.flex}>
+              <Text style={[styles.groupLabel, { color: colors.textPrimary, flex: undefined }]}>{option.title}</Text>
+              <Text style={[styles.badgeDescription, { color: colors.textSecondary }]}>{option.subtitle}</Text>
+            </View>
+            {level === option.key && <Ionicons name="checkmark-circle" size={20} color={colors.accent} />}
+          </TouchableOpacity>
+        ))}
       </Sheet>
 
       <Sheet visible={sheet === 'circles'} onClose={closeSheet} title="Connected circles">
