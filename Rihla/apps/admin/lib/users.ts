@@ -1,5 +1,5 @@
 import { collection, getCountFromServer, getDocs, limit, orderBy, query } from "firebase/firestore";
-import { db } from "./firebase";
+import { getFirebaseServices } from "./firebase";
 
 // Matches what the mobile app writes at sign-up (apps/mobile/src/app/register.tsx).
 export type AdminUser = {
@@ -24,6 +24,7 @@ export function describeFirestoreError(error: unknown): FirestoreProblem {
 }
 
 export async function fetchUsers(max = 200): Promise<AdminUser[]> {
+  const { db } = getFirebaseServices();
   const snapshot = await getDocs(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(max)));
   return snapshot.docs.map((doc) => {
     const data = doc.data();
@@ -37,6 +38,7 @@ export async function fetchUsers(max = 200): Promise<AdminUser[]> {
 }
 
 export async function fetchUserCount(): Promise<number> {
+  const { db } = getFirebaseServices();
   const snapshot = await getCountFromServer(collection(db, "users"));
   return snapshot.data().count;
 }
