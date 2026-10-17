@@ -48,7 +48,8 @@ export default function LoginScreen() {
           autoCapitalize="none"
           keyboardType="email-address"
           onChangeText={setEmail}
-          placeholder="Email or phone"
+          autoComplete="email"
+          placeholder="Email"
           placeholderTextColor={colors.textSecondary}
           style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
           value={email}
