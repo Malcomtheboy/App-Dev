@@ -1,8 +1,8 @@
 rules_version = '2';
 
-// PROPOSED rules — not deployed. Review against whatever is already live on
-// the Firebase console (project rihla-31cd5) before replacing anything, since
-// this file only knows about the two collections below.
+// Mirrors the rules published to project rihla-31cd5 on 2026-10-17.
+// This repository does not deploy rules automatically; compare the live rules
+// before a future deployment so newer collections are not accidentally removed.
 //
 // admins/{uid}
 //   One doc per admin, doc ID = their Firebase Auth uid. A signed-in user may
@@ -12,8 +12,8 @@ rules_version = '2';
 //
 // users/{uid}
 //   Written by the mobile app at sign-up (displayName, email, createdAt).
-//   Each person can read and edit only their own doc; admins can read all of
-//   them (the admin portal's Users page and account count).
+//   Each person keeps the existing read/write access to their own document and
+//   nested documents; admins can read root user docs for the Users page/count.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -29,8 +29,11 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
-      allow create, update: if request.auth != null && request.auth.uid == uid;
-      allow delete: if false;
+      allow write: if request.auth != null && request.auth.uid == uid;
+
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
     }
   }
 }

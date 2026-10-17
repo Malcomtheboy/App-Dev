@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useAdminAuth } from "@/lib/admin-auth";
+import { authErrorMessage } from "@/lib/admin-session";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Overview" },
@@ -15,6 +16,21 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, signOut } = useAdminAuth();
   const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError(null);
+    try {
+      await signOut();
+    } catch (error) {
+      setSignOutError(authErrorMessage(error));
+    } finally {
+      setSigningOut(false);
+    }
+  }
 
   const nav = (
     <>
@@ -39,11 +55,13 @@ export function Sidebar() {
       <div className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
         <p className="truncate px-2 text-xs text-zinc-500">{user?.email}</p>
         <button
-          onClick={() => signOut()}
-          className="mt-2 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="mt-2 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-600 hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-900"
         >
-          Sign out
+          {signingOut ? "Signing out…" : "Sign out"}
         </button>
+        {signOutError && <p role="alert" className="mt-2 px-2 text-xs text-red-600 dark:text-red-400">{signOutError}</p>}
       </div>
     </>
   );
