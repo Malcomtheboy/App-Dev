@@ -23,6 +23,15 @@ export type HadithSection = { number: number; title: string; hadithCount: number
 export type HadithItem = { hadithnumber: number; arabicnumber?: number | string; text: string; grades: unknown[]; reference: { book: number; hadith: number } };
 export type HadithSectionDetail = { number: number; title: string; hadiths: HadithItem[] };
 
+export type HadithHit = { collection: string; collectionName: string; number: number; section: number; excerpt: string };
+export type HadithSearchResult = { query: string; total: number; results: HadithHit[] };
+
+export async function searchHadith(query: string): Promise<HadithSearchResult> {
+  const response = await fetch(`${API_URL}/api/hadith/search?q=${encodeURIComponent(query)}`);
+  if (!response.ok) throw new Error('Could not search Hadith');
+  return response.json();
+}
+
 export async function getHadithCollections(): Promise<HadithCollection[]> {
   const response = await fetch(`${API_URL}/api/hadith/collections`);
   if (!response.ok) throw new Error('Could not fetch Hadith collections');

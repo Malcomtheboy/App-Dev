@@ -386,17 +386,13 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={[
             styles.duaDoneButton,
-            { borderColor: colors.border, backgroundColor: duaDone ? colors.accentTint : colors.surface },
+            { borderColor: colors.accent, backgroundColor: duaDone ? colors.accentTint : 'transparent' },
           ]}
           onPress={handleMarkDua}
           disabled={duaDone}
         >
-          <Ionicons
-            name={duaDone ? 'checkmark-circle' : 'checkmark-circle-outline'}
-            size={18}
-            color={duaDone ? colors.accent : colors.textSecondary}
-          />
-          <Text style={[styles.duaDoneButtonText, { color: duaDone ? colors.accent : colors.textSecondary }]}>
+          <Ionicons name={duaDone ? 'checkmark-circle' : 'checkmark-circle-outline'} size={18} color={colors.accent} />
+          <Text style={[styles.duaDoneButtonText, { color: colors.accent }]}>
             {duaDone ? 'Marked as done today' : 'Mark as done today'}
           </Text>
         </TouchableOpacity>

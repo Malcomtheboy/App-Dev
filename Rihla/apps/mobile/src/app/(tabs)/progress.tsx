@@ -228,9 +228,10 @@ export default function ProgressScreen() {
           <Ionicons name="moon-outline" size={72} color="rgba(255,255,255,0.07)" style={styles.heroEmblem} />
           <View>
             <Text style={styles.heroLabel}>WEEKLY SCORE</Text>
-            <Text style={styles.score}>
-              {week.score}<Text style={styles.scoreSmall}>%</Text>
-            </Text>
+            <View style={styles.scoreRow}>
+              <Text style={styles.score}>{week.score}</Text>
+              <Text style={styles.scoreSmall}>%</Text>
+            </View>
             <Text style={styles.heroCaption}>{scoreCaption(week.score)}</Text>
           </View>
           <View style={styles.ring}>
@@ -254,12 +255,22 @@ export default function ProgressScreen() {
                     styles.graphBar,
                     {
                       height: 8 + (count / prayerNames.length) * 70,
-                      backgroundColor: i === week.todayIndex ? colors.accent : colors.background,
-                      borderColor: i === week.todayIndex ? colors.accent : colors.border,
+                      backgroundColor: count > 0 ? colors.accent : colors.background,
+                      borderColor: count > 0 || i === week.todayIndex ? colors.accent : colors.border,
+                      opacity: count > 0 && i !== week.todayIndex ? 0.55 : 1,
                     },
                   ]}
                 />
-                <Text style={[styles.day, { color: colors.textTertiary }]}>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}</Text>
+                <Text
+                  style={[
+                    styles.day,
+                    i === week.todayIndex
+                      ? { color: colors.accent, fontWeight: '700' }
+                      : { color: colors.textTertiary },
+                  ]}
+                >
+                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'][i]}
+                </Text>
               </View>
             ))}
           </View>
@@ -502,8 +513,9 @@ const styles = StyleSheet.create({
   },
   heroEmblem: { position: 'absolute', top: -10, left: -6 },
   heroLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.4, color: 'rgba(255,255,255,0.75)' },
-  score: { fontSize: 42, fontWeight: '700', color: '#FFFFFF', letterSpacing: -2, marginTop: 10 },
-  scoreSmall: { fontSize: 21, color: 'rgba(255,255,255,0.55)' },
+  scoreRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 10 },
+  score: { fontSize: 42, fontWeight: '700', color: '#FFFFFF', letterSpacing: -1.5, lineHeight: 48 },
+  scoreSmall: { fontSize: 20, fontWeight: '600', color: 'rgba(255,255,255,0.6)', marginLeft: 7, marginBottom: 7 },
   heroCaption: { fontSize: 12, color: 'rgba(255,255,255,0.72)', marginTop: 4 },
   ring: { height: 74, width: 74, borderRadius: 37, borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)', alignItems: 'center', justifyContent: 'center' },
   ringText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },

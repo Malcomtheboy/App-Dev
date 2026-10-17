@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,11 +10,17 @@ import { useTheme } from '@/theme/theme-context';
 export default function HadithSectionScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-  const { collection, section, collectionName } = useLocalSearchParams<{
+  const { collection, section, collectionName, hadith: targetParam } = useLocalSearchParams<{
     collection: string;
     section: string;
     collectionName?: string;
+    hadith?: string;
   }>();
+  const target = targetParam ? Number(targetParam) : null;
+
+  // When opened from a search result or an Ask source, scroll to that hadith
+  // and outline it, instead of leaving the reader at the top of a long chapter.
+  const scrollRef = useRef<ScrollView>(null);
 
   const [detail, setDetail] = useState<HadithSectionDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,11 +74,20 @@ export default function HadithSectionScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
           {detail?.hadiths.map((hadith) => (
             <View
               key={hadith.hadithnumber}
-              style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onLayout={(event) => {
+                if (hadith.hadithnumber === target) {
+                  scrollRef.current?.scrollTo({ y: Math.max(0, event.nativeEvent.layout.y - 8), animated: false });
+                }
+              }}
+              style={[
+                s.card,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                hadith.hadithnumber === target && { borderColor: colors.accent, borderWidth: 2 },
+              ]}
             >
               <View style={[s.badge, { backgroundColor: colors.accentTint, borderColor: colors.accent }]}>
                 <Text style={{ color: colors.accent, fontWeight: '700' }}>#{hadith.hadithnumber}</Text>

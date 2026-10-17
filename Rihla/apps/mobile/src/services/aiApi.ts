@@ -25,9 +25,11 @@ export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 // A reference the server has checked really exists, so it is safe to link to.
 export type AiSource =
   | { kind: 'quran'; label: string; surahId: number; ayah: number }
-  | { kind: 'hadith'; label: string; collection: string; section: number; excerpt: string };
+  | { kind: 'hadith'; label: string; collection: string; number?: number; section: number; excerpt: string };
 
-export type AiAnswer = { reply: string; sources: AiSource[] };
+// `via: 'library'` means the answer was looked up in our own hadith library
+// rather than written by the AI (so it cost no AI request).
+export type AiAnswer = { reply: string; sources: AiSource[]; via?: 'library' };
 
 export async function askAi(message: string, history: ChatTurn[] = [], level?: ExperienceLevel): Promise<AiAnswer> {
   const user = auth.currentUser;
@@ -57,5 +59,9 @@ export async function askAi(message: string, history: ChatTurn[] = [], level?: E
     throw new Error('AI response was empty');
   }
 
-  return { reply: data.reply, sources: Array.isArray(data.sources) ? data.sources : [] };
+  return {
+    reply: data.reply,
+    sources: Array.isArray(data.sources) ? data.sources : [],
+    ...(data.via === 'library' && { via: 'library' as const }),
+  };
 }

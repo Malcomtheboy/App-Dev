@@ -3,11 +3,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { juzStarts } from '@/data/juz-starts';
 import { useExperienceLevel } from '@/hooks/use-experience-level';
+import { searchHadith, type HadithHit, type HadithSearchResult } from '@/services/hadithApi';
 import { getQuranChapters } from '@/services/quranApi';
 import { useTheme } from '@/theme/theme-context';
 
@@ -16,7 +17,7 @@ type Chapter = { id: number; nameSimple: string; nameArabic: string; versesCount
 type LastRead = { surahId: number; surahName: string; verseKey: string; ayah: number; updatedAt: number };
 
 const collections: { key: string; title: string; subtitle: string; icon: IconName }[] = [
-  { key: 'bukhari', title: 'Sahih al-Bukhari', subtitle: '7,563 hadith', icon: 'library-outline' },
+  { key: 'bukhari', title: 'Sahih al-Bukhari', subtitle: '7,278 hadith', icon: 'library-outline' },
   { key: 'muslim', title: 'Sahih Muslim', subtitle: '7,563 hadith', icon: 'bookmarks-outline' },
   { key: 'nawawi', title: '40 Hadith Nawawi', subtitle: '42 hadith', icon: 'ribbon-outline' },
 ];
@@ -44,6 +45,37 @@ export default function LearnScreen() {
       setSearch(q);
     }
   }
+
+  // Hadith search runs on the server over the full text of every collection;
+  // wait for a pause in typing before asking, and ignore answers to older queries.
+  const [hadithSearch, setHadithSearch] = useState<
+    { query: string; status: 'loading' | 'done' | 'error'; data?: HadithSearchResult } | null
+  >(null);
+  const hadithQuery = tab === 'hadith' ? search.trim() : '';
+
+  useEffect(() => {
+    if (hadithQuery.length < 3) return;
+    const id = setTimeout(() => {
+      setHadithSearch({ query: hadithQuery, status: 'loading' });
+      searchHadith(hadithQuery)
+        .then((data) => setHadithSearch((cur) => (cur?.query === hadithQuery ? { query: hadithQuery, status: 'done', data } : cur)))
+        .catch(() => setHadithSearch((cur) => (cur?.query === hadithQuery ? { query: hadithQuery, status: 'error' } : cur)));
+    }, 400);
+    return () => clearTimeout(id);
+  }, [hadithQuery]);
+
+  const hadithState = hadithQuery.length >= 3 && hadithSearch?.query === hadithQuery ? hadithSearch : null;
+
+  const openHadith = (hit: HadithHit) =>
+    router.push({
+      pathname: '/hadith/[collection]/[section]',
+      params: {
+        collection: hit.collection,
+        section: String(hit.section),
+        hadith: String(hit.number),
+        collectionName: hit.collectionName,
+      },
+    });
 
   useEffect(() => {
     getQuranChapters()
@@ -397,6 +429,60 @@ export default function LearnScreen() {
               </View>
             )}
           </>
+        ) : hadithQuery.length > 0 ? (
+          <>
+            <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>Search results</Text>
+
+            {hadithQuery.length < 3 ? (
+              <Text style={[s.hint, { color: colors.textSecondary }]}>Type at least 3 letters to search every hadith.</Text>
+            ) : !hadithState || hadithState.status === 'loading' ? (
+              <View style={s.empty}>
+                <ActivityIndicator color={colors.accent} />
+                <Text style={[s.hint, { color: colors.textSecondary }]}>Searching the collections…</Text>
+              </View>
+            ) : hadithState.status === 'error' ? (
+              <View style={s.empty}>
+                <Ionicons name="cloud-offline-outline" size={26} color={colors.textTertiary} />
+                <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Couldn&apos;t search</Text>
+                <Text style={[s.hint, { color: colors.textSecondary }]}>Check your connection and try again.</Text>
+              </View>
+            ) : hadithState.data && hadithState.data.results.length === 0 ? (
+              <View style={s.empty}>
+                <Ionicons name="search-outline" size={26} color={colors.textTertiary} />
+                <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>No hadith found</Text>
+                <Text style={[s.hint, { color: colors.textSecondary }]}>Try fewer or different words.</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={[s.hint, { color: colors.textSecondary, marginBottom: 10 }]}>
+                  {hadithState.data!.total > hadithState.data!.results.length
+                    ? `Showing the best ${hadithState.data!.results.length} of ${hadithState.data!.total} matches`
+                    : `${hadithState.data!.total} ${hadithState.data!.total === 1 ? 'match' : 'matches'}`}
+                </Text>
+                <View style={[s.groupCard, { backgroundColor: colors.surface, borderColor: colors.border, shadowColor: colors.cardShadow }]}>
+                  {hadithState.data!.results.map((hit, i) => (
+                    <TouchableOpacity
+                      key={`${hit.collection}-${hit.number}`}
+                      onPress={() => openHadith(hit)}
+                      style={[s.hit, i < hadithState.data!.results.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${hit.collectionName} ${hit.number}`}
+                    >
+                      <View style={s.copy}>
+                        <Text style={[s.hitMeta, { color: colors.accent }]}>
+                          {hit.collectionName} · #{hit.number}
+                        </Text>
+                        <Text style={[s.hitText, { color: colors.textPrimary }]} numberOfLines={4}>
+                          {hit.excerpt}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={17} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+          </>
         ) : (
           <>
             <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>
@@ -532,7 +618,11 @@ const s = StyleSheet.create({
   sub: { fontSize: 11.5, marginTop: 4 },
   arabicName: { fontSize: 18 },
 
-  empty: { alignItems: 'center', paddingVertical: 45 },
+  empty: { alignItems: 'center', paddingVertical: 45, gap: 4 },
+  hint: { fontSize: 12.5, lineHeight: 18, textAlign: 'center' },
+  hit: { paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  hitMeta: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2, marginBottom: 5 },
+  hitText: { fontSize: 13.5, lineHeight: 20 },
   emptyTitle: { fontSize: 14, fontWeight: '700', marginTop: 8 },
 
   reflection: { borderWidth: 1, borderRadius: 20, padding: 18, gap: 10, shadowOpacity: 1, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 2 },

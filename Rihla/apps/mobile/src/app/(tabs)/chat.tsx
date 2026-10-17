@@ -27,7 +27,7 @@ import type { ThemeColors } from '@/theme/colors';
 import { useTheme } from '@/theme/theme-context';
 
 type MessageRole = 'user' | 'assistant';
-type ChatMessage = { id: string; role: MessageRole; text: string; createdAt: number; sources?: AiSource[] };
+type ChatMessage = { id: string; role: MessageRole; text: string; createdAt: number; sources?: AiSource[]; via?: 'library' };
 type Conversation = { id: string; title: string; messages: ChatMessage[]; updatedAt: number };
 
 const STORAGE_KEY = 'rihla:conversations';
@@ -177,10 +177,12 @@ export default function AskScreen() {
 
     let replyText: string;
     let sources: AiSource[] = [];
+    let via: 'library' | undefined;
     try {
       const answer = await askAi(trimmed, history, level);
       replyText = answer.reply;
       sources = answer.sources;
+      via = answer.via;
     } catch {
       replyText = "Sorry, I couldn't reach the AI just now. Check your connection and try again in a moment.";
     }
@@ -192,6 +194,7 @@ export default function AskScreen() {
       text: replyText,
       createdAt: repliedAt,
       ...(sources.length > 0 && { sources }),
+      ...(via && { via }),
     };
     setConversations((prev) =>
       prev.map((c) =>
@@ -203,7 +206,10 @@ export default function AskScreen() {
 
   const openSource = (source: AiSource) => {
     if (source.kind === 'quran') router.push(`/quran/${source.surahId}?ayah=${source.ayah}` as any);
-    else router.push(`/hadith/${source.collection}/${source.section}` as any);
+    else {
+      const hadith = source.number ? `?hadith=${source.number}` : '';
+      router.push(`/hadith/${source.collection}/${source.section}${hadith}` as any);
+    }
   };
 
   return (
@@ -440,6 +446,12 @@ function MessageBubble({
         ]}
       >
         <Text style={[styles.bubbleText, { color: isUser ? colors.accentOn : colors.textPrimary }]}>{message.text}</Text>
+        {!isUser && message.via === 'library' && (
+          <View style={styles.libraryTag}>
+            <Ionicons name="library-outline" size={12} color={colors.textTertiary} />
+            <Text style={[styles.libraryTagText, { color: colors.textTertiary }]}>From the Hadith library</Text>
+          </View>
+        )}
         {!isUser && !!message.sources?.length && (
           <View style={[styles.sources, { borderTopColor: colors.border }]}>
             <Text style={[styles.sourcesLabel, { color: colors.textTertiary }]}>SOURCES</Text>
@@ -579,6 +591,8 @@ const styles = StyleSheet.create({
   bubbleUser: { borderTopRightRadius: 6 },
   bubbleAssistant: { borderTopLeftRadius: 6, borderWidth: 1 },
   bubbleText: { fontSize: 14, lineHeight: 20, flexShrink: 1 },
+  libraryTag: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 },
+  libraryTagText: { fontSize: 10.5, fontWeight: '600' },
   sources: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, gap: 7 },
   sourcesLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
   sourceChip: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
