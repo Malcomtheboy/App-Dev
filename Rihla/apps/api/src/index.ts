@@ -1,5 +1,5 @@
 import dns from "node:dns";
-import express from "express";
+import express, { type RequestHandler } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -10,6 +10,8 @@ import { askGemini, isExperienceLevel, isGeminiConfigured, type ChatTurn } from 
 import { quranLabel, quranRefIsReal, splitSources, type SourceRef } from "./sources.js";
 import { createAiSecurity } from "./ai-security.js";
 import { createAdminUsersRouter } from "./admin-users.js";
+import { detectHadithIntent, type HadithIntent } from "./hadith-intent.js";
+import { normalizeQuery, searchHadiths } from "./hadith-search.js";
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -222,6 +224,29 @@ app.get("/api/hadith/collections", (_req, res) => {
   res.json(Object.entries(HADITH_COLLECTIONS).map(([key, name]) => ({ key, name })));
 });
 
+// SEARCH THE ENGLISH TEXT OF EVERY COLLECTION
+app.get("/api/hadith/search", async (req, res) => {
+  const query = normalizeQuery(req.query.q);
+  if (!query) {
+    return res.status(400).json({ error: "Search for 3 to 60 characters" });
+  }
+
+  try {
+    const keys = Object.keys(HADITH_COLLECTIONS) as HadithCollectionKey[];
+    const editions = await Promise.all(
+      keys.map(async (collection) => ({
+        collection,
+        name: HADITH_COLLECTIONS[collection],
+        hadiths: (await fetchHadithEdition(collection)).hadiths,
+      })),
+    );
+    res.json({ query, ...searchHadiths(editions, query) });
+  } catch (error) {
+    console.error("Hadith search error:", error);
+    res.status(500).json({ error: "Kunne ikke søke i hadith" });
+  }
+});
+
 // GET SECTIONS (BOOKS/CHAPTERS) FOR ONE COLLECTION
 app.get("/api/hadith/:collection/sections", async (req, res) => {
   const { collection } = req.params;
@@ -294,7 +319,7 @@ app.get("/api/hadith/:collection/sections/:sectionNumber", async (req, res) => {
 
 type VerifiedSource =
   | { kind: "quran"; label: string; surahId: number; ayah: number }
-  | { kind: "hadith"; label: string; collection: string; section: number; excerpt: string };
+  | { kind: "hadith"; label: string; collection: string; number: number; section: number; excerpt: string };
 
 let chapterInfo: Map<number, { name: string; versesCount: number }> | null = null;
 
@@ -306,6 +331,84 @@ async function getChapterInfo() {
   );
   return chapterInfo;
 }
+
+function hadithSource(collection: HadithCollectionKey, hadith: HadithEntry): VerifiedSource {
+  return {
+    kind: "hadith",
+    label: `${HADITH_COLLECTIONS[collection]} ${hadith.hadithnumber}`,
+    collection,
+    number: hadith.hadithnumber,
+    section: hadith.reference.book,
+    excerpt: (hadith.text ?? "").slice(0, 240),
+  };
+}
+
+// Questions that are plain hadith lookups are answered from our own library
+// (the same data as the Hadith tab), which costs no Gemini request. Returns
+// null when the library has nothing, so the question still reaches the AI.
+const MAX_QUOTED = 1200;
+
+async function answerFromHadithLibrary(
+  intent: HadithIntent,
+): Promise<{ reply: string; sources: VerifiedSource[] } | null> {
+  if (intent.kind === "reference") {
+    const name = HADITH_COLLECTIONS[intent.collection];
+    const edition = await fetchHadithEdition(intent.collection);
+    const hadith = edition.hadiths.find((entry) => entry.hadithnumber === intent.number);
+    if (!hadith?.text) {
+      const last = edition.hadiths[edition.hadiths.length - 1]?.hadithnumber;
+      return { reply: `I couldn't find hadith number ${intent.number} in ${name}. It goes up to ${last}.`, sources: [] };
+    }
+    const full = hadith.text.trim();
+    const quoted =
+      full.length > MAX_QUOTED ? `${full.slice(0, MAX_QUOTED).trimEnd()}…\n\nOpen the source below to read the rest.` : full;
+    return { reply: `${name}, hadith ${intent.number}:\n\n${quoted}`, sources: [hadithSource(intent.collection, hadith)] };
+  }
+
+  const keys = Object.keys(HADITH_COLLECTIONS) as HadithCollectionKey[];
+  const editions = await Promise.all(
+    keys.map(async (collection) => ({
+      collection,
+      name: HADITH_COLLECTIONS[collection],
+      hadiths: (await fetchHadithEdition(collection)).hadiths,
+    })),
+  );
+  const { total, results } = searchHadiths(editions, intent.query, 3);
+  if (total === 0) return null;
+
+  const sources = results.flatMap((hit) => {
+    const edition = editions.find((entry) => entry.collection === hit.collection);
+    const hadith = edition?.hadiths.find((entry) => entry.hadithnumber === hit.number);
+    return hadith ? [hadithSource(hit.collection as HadithCollectionKey, hadith)] : [];
+  });
+  const closest = sources.length === 1 ? "the closest match" : `the closest ${sources.length}`;
+  return {
+    reply: `I found ${total} hadith about "${intent.query}" in the collections. Here ${sources.length === 1 ? "is" : "are"} ${closest}. Open one to read it in full.`,
+    sources,
+  };
+}
+
+let libraryAnswers = 0;
+
+// Runs after sign-in but BEFORE the Gemini rate limits, so these answers don't
+// use up anyone's AI budget.
+const answerFromLibrary: RequestHandler = async (req, res, next) => {
+  const message = req.body?.message;
+  if (typeof message !== "string") return next();
+
+  const intent = detectHadithIntent(message);
+  if (!intent) return next();
+
+  try {
+    const answer = await answerFromHadithLibrary(intent);
+    if (!answer) return next();
+    libraryAnswers += 1;
+    res.json({ ...answer, via: "library" });
+  } catch (error) {
+    console.error("Hadith library answer failed:", error);
+    next();
+  }
+};
 
 // Keeps only references that really exist. Anything the model got wrong (a
 // surah that isn't there, an ayah past the end, a hadith number that doesn't
@@ -322,15 +425,7 @@ async function verifySources(refs: SourceRef[]): Promise<VerifiedSource[]> {
       } else {
         const edition = await fetchHadithEdition(ref.collection);
         const hadith = edition.hadiths.find((entry) => entry.hadithnumber === ref.number);
-        if (hadith) {
-          verified.push({
-            kind: "hadith",
-            label: `${HADITH_COLLECTIONS[ref.collection]} ${ref.number}`,
-            collection: ref.collection,
-            section: hadith.reference.book,
-            excerpt: (hadith.text ?? "").slice(0, 240),
-          });
-        }
+        if (hadith) verified.push(hadithSource(ref.collection, hadith));
       }
     } catch (error) {
       console.error("Source check failed:", error);
@@ -354,7 +449,7 @@ app.get("/api/health", (_req, res) => {
     services: {
       quran: { configured: !!process.env.QF_CLIENT_ID && !!process.env.QF_CLIENT_SECRET, ...upstreams.quran },
       hadith: { configured: true, cachedCollections: [...hadithEditionCache.keys()], ...upstreams.hadith },
-      ai: { configured: isGeminiConfigured(), ...upstreams.ai },
+      ai: { configured: isGeminiConfigured(), ...upstreams.ai, libraryAnswers },
     },
   });
 });
@@ -363,7 +458,11 @@ app.get("/api/health", (_req, res) => {
 // Firebase ID token and the caller's admins/{uid} role before every request.
 app.use("/api/admin/users", createAdminUsersRouter());
 
-app.post("/api/ai/ask", ...createAiSecurity(), async (req, res) => {
+// Sign-in, then plain hadith lookups from our own library, then the per-user
+// and shared Gemini limits, then Gemini itself.
+const [requireUser, ...aiBudgets] = createAiSecurity();
+
+app.post("/api/ai/ask", requireUser, answerFromLibrary, ...aiBudgets, async (req, res) => {
   if (!isGeminiConfigured()) {
     return res.status(503).json({ error: "AI isn't configured on this server yet" });
   }

@@ -124,6 +124,7 @@ test("the real Gemini route preserves authentication, experience levels and veri
         kind: "hadith",
         label: "40 Hadith Nawawi 1",
         collection: "nawawi",
+        number: 1,
         section: 1,
         excerpt: "Actions are judged by intentions.",
       }],
