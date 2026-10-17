@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { auth } from './firebase';
 
 // Same host-detection trick as quranApi.ts and hadithApi.ts — see there for why.
 function resolveApiUrl(): string {
@@ -21,9 +22,20 @@ const API_URL = resolveApiUrl();
 export type ChatTurn = { role: 'user' | 'assistant'; text: string };
 
 export async function askAi(message: string, history: ChatTurn[] = []): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Sign in to use the AI.');
+  if (!__DEV__ && !API_URL.startsWith('https://')) {
+    throw new Error('A secure AI connection is not configured.');
+  }
+
+  // Firebase refreshes expired tokens automatically; never persist a separate token copy.
+  const token = await user.getIdToken();
   const response = await fetch(`${API_URL}/api/ai/ask`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({ message, history }),
   });
 
