@@ -8,6 +8,7 @@ import { createServerClient } from "@quranjs/api/server";
 import type { ChapterId } from "@quranjs/api";
 import { askGemini, isExperienceLevel, isGeminiConfigured, type ChatTurn } from "./gemini.js";
 import { quranLabel, quranRefIsReal, splitSources, type SourceRef } from "./sources.js";
+import { createAiSecurity } from "./ai-security.js";
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -65,21 +66,6 @@ app.use(
     limit: 120,
     standardHeaders: true,
     legacyHeaders: false,
-  })
-);
-
-// A tighter, shared (not per-IP) budget for AI calls — Gemini's free tier is
-// a handful of requests per minute for the whole API key, not per user, so
-// this has to cap total traffic across every client rather than each one.
-app.use(
-  "/api/ai",
-  rateLimit({
-    windowMs: 60_000,
-    limit: 8,
-    standardHeaders: true,
-    legacyHeaders: false,
-    keyGenerator: () => "global",
-    message: { error: "AI requests are limited right now — try again in a minute." },
   })
 );
 
@@ -372,7 +358,7 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-app.post("/api/ai/ask", async (req, res) => {
+app.post("/api/ai/ask", ...createAiSecurity(), async (req, res) => {
   if (!isGeminiConfigured()) {
     return res.status(503).json({ error: "AI isn't configured on this server yet" });
   }
