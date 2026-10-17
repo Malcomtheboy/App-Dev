@@ -38,6 +38,12 @@ Open <http://localhost:3001/login>. Express continues to use port 3000. Point
 `NEXT_PUBLIC_API_URL` at the Express server, not at the admin portal; use HTTPS in
 production. Firebase login/user reads work independently of Express.
 
+The Users page loads basic rows through the existing Firestore rules. Its account
+detail and activate/disable controls call the protected Express admin routes. For
+those controls, the API needs Application Default Credentials as documented in
+`../api/README.md`; credentials always stay on the API server. If the API is down
+or lacks credentials, those controls show an error and no account is changed.
+
 ## Authentication and authorization
 
 - Firebase validates the email/password. Password reset sends Firebase's reset
@@ -54,8 +60,9 @@ production. Firebase login/user reads work independently of Express.
   online again on each restored session. Verify this in the intended browser.
 - The React route guard is navigation/UX, **not a security boundary**. User data is
   requested from the browser through Firebase and must be protected by deployed
-  Firestore rules. The portal does not yet have privileged mutation APIs. Any
-  future Next.js server action/route must independently verify identity and role.
+  Firestore rules. Privileged account changes go through Express, which independently
+  verifies a current ID token and `admins/{uid}` role before using Firebase Admin.
+  Any future Next.js server action/route must do the same.
 
 ## Checks and manual testing
 

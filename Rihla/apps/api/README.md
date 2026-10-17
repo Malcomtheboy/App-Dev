@@ -27,9 +27,25 @@ Gemini limits. Auth emulator mode is deliberately rejected.
 The mobile app retrieves a current ID token for each request. Configure
 `EXPO_PUBLIC_API_URL` with an **HTTPS** API URL outside local development to
 protect bearer tokens in transit. Never put `GEMINI_API_KEY` or Admin credentials
-in the mobile app. Release builds reject HTTP for AI requests. Basic token
-verification does not check account disablement or token revocation;
-already-issued tokens can remain valid until they expire.
+in the mobile app. Release builds reject HTTP for AI requests. Basic Gemini token
+verification does not check account disablement or token revocation; already-issued
+tokens can remain valid until they expire.
+
+## Privileged admin routes
+
+`GET /api/admin/users/:uid` and `PATCH /api/admin/users/:uid/status` are used by
+the admin portal. They verify the Firebase ID token with revocation checking,
+then verify the caller against `admins/{uid}` before reading or changing another
+account. The status route accepts `{ "disabled": true | false }` and refuses to
+disable the current administrator's own account.
+
+These operations require Firebase Admin privileges. In hosted Google environments,
+use the runtime's Application Default Credentials. For local development, set
+`GOOGLE_APPLICATION_CREDENTIALS` to a service-account JSON file stored **outside**
+the repository. Never copy that file into `apps/api`, the mobile app, the admin
+portal, Git, or any `NEXT_PUBLIC_*`/`EXPO_PUBLIC_*` variable. Without credentials,
+the routes fail closed with `503`; Gemini token verification continues to work as
+before without a private key.
 
 Run `npm test` and `npx tsc --noEmit` in `apps/api` for local checks. The test
 command runs both the source-parser tests in `src/` and the security/integration tests in

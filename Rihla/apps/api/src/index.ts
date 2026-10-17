@@ -9,6 +9,7 @@ import type { ChapterId } from "@quranjs/api";
 import { askGemini, isExperienceLevel, isGeminiConfigured, type ChatTurn } from "./gemini.js";
 import { quranLabel, quranRefIsReal, splitSources, type SourceRef } from "./sources.js";
 import { createAiSecurity } from "./ai-security.js";
+import { createAdminUsersRouter } from "./admin-users.js";
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -357,6 +358,10 @@ app.get("/api/health", (_req, res) => {
     },
   });
 });
+
+// Privileged account operations. The router independently verifies a current
+// Firebase ID token and the caller's admins/{uid} role before every request.
+app.use("/api/admin/users", createAdminUsersRouter());
 
 app.post("/api/ai/ask", ...createAiSecurity(), async (req, res) => {
   if (!isGeminiConfigured()) {
